@@ -1,0 +1,383 @@
+---
+title: "vivendas kaggle"
+author: "Daniel Barandiarán"
+date: '2022-07-18'
+output: html_document
+---
+
+You are working as an intern for an abalone farming operation in Japan. For operational and environmental reasons, it is an important consideration to estimate the age of the abalones when they go to market.
+
+Determining an abalone's age involves counting the number of rings in a cross-section of the shell through a microscope. Since this method is somewhat cumbersome and complex, you are interested in helping the farmers estimate the age of the abalone using its physical characteristics.
+
+
+You have access to the following historical data (source):
+
+Abalone characteristics:
+"sex" - M, F, and I (infant).
+"length" - longest shell measurement.
+"diameter" - perpendicular to the length.
+"height" - measured with meat in the shell.
+"whole_wt" - whole abalone weight.
+"shucked_wt" - the weight of abalone meat.
+"viscera_wt" - gut-weight.
+"shell_wt" - the weight of the dried shell.
+"rings" - number of rings in a shell cross-section.
+"age" - the age of the abalone: the number of rings + 1.5.
+Acknowledgments: Warwick J Nash, Tracy L Sellers, Simon R Talbot, Andrew J Cawthorn, and Wes B Ford (1994) "The Population Biology of Abalone (Haliotis species) in Tasmania. I. Blacklip Abalone (H. rubra) from the North Coast and Islands of Bass Strait", Sea Fisheries Division, Technical Report No. 48 (ISSN 1034-3288).
+
+
+
+
+```{r}
+suppressPackageStartupMessages(library(tidyverse))
+abalone <- readr::read_csv('abalone.csv', show_col_types = FALSE)
+abalone
+```
+
+
+Create a report that covers the following:
+
+- How does weight change with age for each of the three sex categories?
+
+To know this, we can make a graphic to see how changes, and the differences between categories.
+
+```{r}
+LM <- lm(whole_wt ~ age + factor(sex), data=abalone)
+ggplot(LM, aes(abalone$age, abalone$whole_wt, color=abalone$sex)) + geom_point() + stat_smooth(method = lm)
+```
+
+We can see that the older the abalone get, the heavier they get. This is understandable in the juvenile group (without determining the sex), where it is seen that they are gaining weight as they get older. But even in the adult groups they do not lose weight even in old age. 
+As for the difference between males and females, we see that females gain more weight in the juvenile stage than males, and then they gain weight more gradually. However, the males acquire less weight in their young stage, and then they acquire more weight than the females, surpassing the females from middle age onwards.
+
+
+- Can you estimate an abalone's age using its physical characteristics?
+
+```{r}
+library(GGally)
+ggpairs(abalone)
+```
+
+We can see that most variables follow a linearity with the dependent variable. We should therefore perform a linear regression to predict age. On the other hand, as there is so much correlation between variables we should check for multicollinearity.
+
+```{r}
+model <-lm(age ~ length + diameter + height + whole_wt + shucked_wt + viscera_wt + shell_wt, data=abalone)
+```
+```{r}
+library(car)
+vif(model)
+```
+
+If the following values are greater than 5 then there is a problem of multicollinearity, an excess of correlation between variables. The solution is to eliminate the variable or perform PCA (principal component analysis). As the idea is to perform the prediction with all the variables we will perform PCA.
+
+The PCA must comply with: 
+
+- Quantitative and correlated variables.
+- The variables must have the same scale, although the PCA function that we are going to use already does this automatically.
+- We must take special care with outliers and missing values (NA), as they can alter the results of the PCA.
+
+Therefore, let's start looking for outliers and create a dataset with only what we need.
+
+```{r}
+summary(abalone)
+```
+
+```{r}
+library(mt)
+out <- pca.outlier(abalone[,c(-1, -9) ], adj=-0.5)
+out$outlier
+```
+
+```{r}
+abalone_active <- abalone[c(-out$outlier), c(-1, -9, -10)]
+```
+
+
+The next step is to assess the correlation of the variables. For it to make sense to perform the PCA there must be a minimum.
+
+
+- Bartlett's test of sphericity assesses the nature of the correlations. If it is significant it suggests that the variables are not an 'identity matrix' in which correlations occur because of sampling error.
+
+```{r}
+library(psych)
+cortest.bartlett(abalone_active, n=98)
+```
+
+Here we can see that it`s significant.
+
+
+- The KMO (Kaiser-Meyer-Olkin) measure of sampling adequacy is based on common variance (information). It measures whether there is an appropriate number of observations in relation to the number of variables being assessed. There is one overall score and one score per variable. It takes values between 0 (poor fit) to 1 (good fit).  
+
+```{r}
+KMO(cor(abalone_active))
+```
+
+All of them are very close of 1, so it's good.
+
+
+- Determinant positivity test: assesses multicollinearity. The result should preferably fall below 0.00001 .  
+
+```{r}
+det(cor(abalone_active))
+```
+
+The results are nice, so we can proceed to do the PCA.
+
+
+create model PCA
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+( res_pca <- PCA(abalone_active, graph=FALSE))
+```
+
+
+Summary model PCA
+
+```{r}
+summary(res_pca)
+```
+
+
+SELECT NUMBER OF PRINCIPAL COMPONENTS
+
+To determine how many dimensions to keep, there is no single method, we can use:
+
+- Keiser-Guttman rule. take the eigenvalues > 1. Since if it is >1 it indicates that on average the PC accounts for more variance than 1 of the original variables in the standardised data. In other words, this criterion attempts to retain the PCs that express more variance than each of the original variables, retaining those that provide substantial information.
+
+- Variance explained. consider as many PCs as the % of total variance we want to account for. For example, if we consider that 80% of total variance explained is sufficient.
+
+```{r}
+get_eigenvalue(res_pca)
+```
+
+With this function we can see the first 2 methods.
+In our case, the first PC has eigenvalue greater than 1 (Keiser-Guttman rule), and they explain more than 80% of the variability of the data (% variability explained).
+
+
+
+- Screen or sedimentation plot. Make a graph with the eigenvalues as a function of the PCs and look for the "elbow" of the graph, the inflection point, where the eigenvalues seem to stabilise. CPs to the left of this point are considered significant (Jollife 2002, Peres-Neto et al 2005).
+
+
+```{r}
+fviz_screeplot(res_pca)
+```
+
+It would be one again.
+
+
+
+- Horn Parallel Analysis. It contrasts the variability expressed in the original dataset with that obtained from randomly generated datasets with similar characteristics to the original one. This option allows you to control for possible bias effects in the choice of number of PCs when the data set is small (Horn 1965).
+
+```{r}
+library(psych)
+fa.parallel(abalone_active, fa="pc")
+```
+
+This method shows that only the first one is sufficient, those above the red line. The red line represents what happens by chance.
+
+In summary, with these data we can say that one PC is enough.
+
+
+VARIABLES
+
+To interpret the results we must look for the most important or relevant variables for the axes we have selected.
+
+We obtain the following information with the function get_pca_var():
+```{r}
+( var <- get_pca_var(res_pca))
+```
+
+- COORDINATES of the variables in each PC. This is the correlation of the variable with each PC.
+- cos2. Represents the QUALITY of the representation for the variables in each PC. It corresponds to the square of the coordinates (coord^2),
+- contrib. Contains the CONTRIBUTION (in %) of the variable in each PC. It is calculated as the quality of the variable divided by the total quality of the component (cos2/sum(cos2)).
+
+
+We can plot this information on a variable map with the function 
+fviz_pca_var():
+
+```{r}
+fviz_pca_var(res_pca, repel = TRUE)
+```
+
+Indeed, we can see that all variables are very well represented on axis 1. But to see this better we will calculate the quality of each representation.
+
+
+The quality corresponds to the squared coordinates.
+```{r}
+fviz_cos2(res_pca, choice = "var", axes=1)
+fviz_cos2(res_pca, choice = "var", axes=2)
+```
+
+We see then that for axis 1 all variables are very well represented, as the values are greater than 0.75. The closer to 1 the better.
+
+The contribution of variables to components is calculated as the quality of the variable divided by the total quality of the component, expressed as a percentage.
+
+Variables with the highest contribution to a CP are those most correlated with it. Red line: expected average contribution if they were uniform. 1/n (1/7=0.14, 14%)
+
+```{r}
+fviz_contrib(res_pca, choice = "var", axes = 1)
+fviz_contrib(res_pca, choice = "var", axes = 2)
+```
+
+Here we simply see which variables are the most important relative to the rest.
+
+Finally, the factominer function dimdesc() allows us to describe the dimensions or PCs, identifying the variables significantly associated with each.
+
+- Ordered correlations
+- Significance of the correlation (cor =/ 0 for 95% confidence level)
+
+```{r}
+library(FactoMineR)
+res_desc <- dimdesc(res_pca, axes=c(1,2), proba = 0.05)
+```
+
+```{r}
+res_desc$Dim.1
+```
+
+We see that all variables have a very high positive correlation with axis 1.
+
+
+Study of the individuals
+
+We can map the individuals in the first PCs to see their relationship with the fviz_pca_ind() function. Unlike the variable map which used correlations as coordinates, individuals or observations are represented by their projections on the map.
+
+- Individuals with average values on all variables will be placed in the centre of the graph. Conversely, we expect that individuals with extreme values will be far from the centre.
+- Individuals with similar values (on the study variables) will be clustered on the map. Conversely, individuals with different profiles will be far from each other.
+
+```{r}
+fviz_pca_ind(res_pca, repel=TRUE)
+```
+
+It is not common to see a shape in this type of graph, we have obtained a kind of parabola that is widening from left to right. This does not tell us anything either, as it simply has to be interpreted as indicated above, i.e. we see individuals with normal values around the centre, and individuals with extreme values far from the centre.
+
+
+The distance between individuals can only be interpreted for well-projected individuals (with high cos2).
+
+```{r}
+fviz_cos2(res_pca, choice = "ind", axes = 1)
+fviz_cos2(res_pca, choice = "ind", axes = 2)
+```
+
+We see that the vast majority of individuals have good quality. However, we will filter these values later to comment on the best represented ones.
+
+Individuals with higher coordinate values contribute more to the axis (high contribution).
+
+```{r}
+fviz_contrib(res_pca, choice = "ind", axes = 1)
+fviz_contrib(res_pca, choice = "ind", axes = 2)
+```
+
+The values above the red line are those that contribute most to the axis, so it makes sense to interpret them.
+
+We can study variables and individuals separately, but the most interesting thing is to analyse their relationships.
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+fviz_pca_biplot(res_pca, repel=TRUE)
+```
+
+- An individual who is on the same side of a variable has a high value for that variable.
+- An individual who is on the opposite side of a variable has a low value for that variable.
+
+In order to better interpret component 1, we will select the most important variables and individuals.
+
+```{r}
+fviz_pca_biplot(res_pca, repel=T,
+                select.var=list(cos2=0.7),
+                select.ind=list(cos2=0.7),
+                ggtheme = theme_minimal())
+```
+
+We see then that total weight is the variable that contributes the most to axis 1, and also has many individuals with a high value for this variable. Height, however, is the variable with the lowest contribution (but still high quality) and has many individuals with a low value for this variable.
+
+As for the individuals, the ones with the lowest contribution are the ones in the centre of the graph, i.e. the ones with the most regular values.
+
+
+Since the only supplementary variable we have is age, we will proceed to create the model together with this variable.
+
+```{r}
+abalone_active2 <- abalone[c(-out$outlier), c(-1, -9)]
+str(abalone_active2)
+```
+
+
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+res_pca_all <- PCA(abalone[c(-out$outlier), c(-1, -9)],
+                   graph = FALSE)
+```
+
+```{r}
+library(FactoMineR)
+PCs <- res_pca_all$ind$coord[,1:2] 
+model <- lm(unlist(age) ~ PCs[,1] + PCs[,2], data=abalone_active2)
+```
+
+
+
+```{r}
+summary(model)
+```
+Here we see that the two principal components have a high significance value. We also see that we have obtained a very high R2 of 0.99. This makes the model significant. As we have performed the PCA there should be no multicollinearity problems in the model.
+
+```{r}
+library(car)
+vif(model)
+```
+
+Indeed, there is no multicollinearity. Therefore, this model is perfectly valid for prediction. 
+
+Only the normality of the residuals and the heteroscedasticity should be checked.
+
+
+```{r}
+ggqqplot(residuals(fit))
+shapiro_test(residuals(fit))
+```
+
+```{r}
+plot(model,1)
+```
+
+We see visually that there is no heteroscedasticity, and in terms of normality we see that it does not comply. It is not a very strict problem but we can use a generalised linear model which is more robust to this problem.
+
+```{r}
+install.packages("recipes")
+```
+
+
+```{r}
+library(caret)
+model_G <- glm(unlist(age) ~ PCs[,1] + PCs[,2], data=abalone_active2)
+summary(model_G)
+```
+
+
+
+- Investigate which variables are better predictors of age for abalones.
+
+```{r}
+#Rename your workspace to make it descriptive of your work. N.B. you should leave the notebook name as notebook.ipynb.
+#Remove redundant cells like the judging criteria, so the workbook is focused on your story.
+#Check that all the cells run without error.
+```
+
+```{r}
+model_s <- lm(age ~ ., data=abalone)
+summary(model_s)
+```
+
+```{r}
+model_f <- lm(age ~ length + diameter + height + whole_wt + shucked_wt + viscera_wt + shell_wt, data=abalone)
+summary(model_f)
+```
+
+As it is not possible to know from the PCA which variable most influences the age variable, we see in the first model that the most influential variables are the rings (with a perfect correlation) and sex, both male and female. The second model is only of physical characteristics, and in this model the variables "whole_wt" and "shucked_wt" are the best predictors, in that order of error.
+
+
+
