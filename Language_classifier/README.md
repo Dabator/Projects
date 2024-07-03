@@ -1,4 +1,4 @@
-# Language Classification of Words in a Text
+# Language Classification of Words in a Text (PLN)
 
 ## Overview
 
