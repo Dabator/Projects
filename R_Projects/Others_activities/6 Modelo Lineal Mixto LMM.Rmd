@@ -1,0 +1,438 @@
+---
+title: "Modelo lineal mixto (G)LMM"
+author: "Daniel Barandiarán"
+date: "22/3/2022"
+output: html_document
+---
+
+
+“Es raro encontrar un conjunto de datos en el que las observaciones de la variable respuesta sean independientes” (Zuur & Ieno 2016). 
+
+Objetivos de aprendizaje
+Distinguir entre modelos lineales mixtos (LMM) y modelos lineales mixtos generalizados (GLMM)
+Combinar herramientas de análisis enseñadas a lo largo del curso
+Aplicar modelos de efectos mixtos
+
+Los modelos mixtos son una herramienta de modelado extremadamente útil para situaciones en las que existe cierta dependencia entre las observaciones en los datos, donde la correlación surge típicamente de que las observaciones se agrupan de alguna manera. Por ejemplo, es bastante común tener datos en los que tenemos mediciones repetidas para las unidades de observación, o en los que las unidades de observación se agrupan de otra manera. Si bien hay diferentes formas de abordar esta situación, los modelos mixtos son una herramienta muy común y poderosa para hacerlo. Además, tienen vínculos con otros enfoques estadísticos que amplían aún más
+
+Los Modelos Lineales Mixtos (LMM) se utilizan particularmente cuando no hay independencia en los datos.
+Ejemplos: 
+- Datos anidados (multinivel/jerárquicos). Como cuando se forman grupos correlacionados,  cabe esperar que las observaciones de un grupo sean más parecidas entre sí que en otros grupos. Ejemplo: los estudiantes podrían ser muestreados dentro de las aulas o los pacientes dentro de los médicos.
+
+- Datos temporales. Ejemplo: evaluar cómo varía el grado de dificultad en el uso de distintos programas en el tiempo (medidas repetidas). Es de esperar que los niveles de dificultad se asemejen en el tiempo por cada grupo
+
+- Datos espaciales. Ejemplo: % de adultos con alto nivel educativo por municipios. Es de esperar que el nivel educativo sea similar en los municipios colindantes.
+
+Con los modelos mixtos comprendemos mejor las FUENTES DE VARIABILIDAD en la respuesta. Obtendremos estimaciones y predicciones específicas por grupo. La variación dentro de cada grupo y la variacion entre grupos.
+
+Los modelos lineales clásicos incorporan EFECTOS FIJOS:
+- Modelan la MEDIA de la variable respuesta.
+- Parámetro que no varía dentro del grupo.
+- Variables en las cuáles el investigador ha incluido solo los niveles (o tratamientos) que son de su interés.
+
+Los modelos lineales mixtos incorporan también EFECTOS ALEATORIOS:
+- Modelan la ESTRUCTURA DE LAS COVARIANZAS de la variable respuesta.
+- Parámetros que sí varían, son en sí mismos variables aleatorias.Van a variar por grupo.
+- Variables cuyos niveles se eligen de forma aleatoria de una población más grande.
+
+En un modelo simple no varía ni el intercepto ni la pendiente. 
+En un modelo mixto de efectos aleatorios puede: variar de forma aleatoria el intercepto;  variar de forma aleatoria el pendiente; o variar ambos.
+
+Desafortunadamente, la distinción entre efectos fijos y efectos aleatorios no siempre es obvia, y la decisión puede cambiar dependiendo de los objetivos del análisis (Gelman & Hill, 2007; Gelman 2005). Pero de manera general podemos decir que:
+1. Los efectos FIJOS son constantes entre individuos y los ALEATORIOS varían.
+2. Los efectos son FIJOS si son interesantes en sí mismos o ALEATORIOS si hay interés en la población subyacente.
+3. FIJO cuando la muestra agota la población; ALEATORIO cuando la muestra es una pequeña parte.
+4. ALEATORIO si se supone que es un valor realizado de una variable aleatoria.
+5. Efectos FIJOS son estimados mediante mínimos cuadrados o máxima verosimilitud; efectos ALEATORIOS son estimados con contracción.
+
+6. Los predictores categóricos con un pequeño númerod e niveles (<4) conviene tratarlas como efeto FIJO ya que nuestros resultados no pueden extrapolarse más allá de estos niveles. Los predictores con gran número de niveles (>4-5) preferiblemente(>10) se tratan mejor como efectos ALEATORIOS.
+7. Los efectos ALEATORIOS suelen representar alguna variable de AGRUPACIÓN y permiten estimar la varianza en la variable de la respuesta DENTRO y ENTRE grupos. Los efectos FIJOS solo permiten estimar la varianza entre grupos.
+
+Los efectos aleatorios los podemos modelar como INTERCEPTOS o como  PENDIENTES ALEATORIAS:
+
+Cuando los datos tienen alguna forma de agrupación y tiene sentido controlar la variación en los resultados entre estos grupos, entonces probablemente deberías incluir dicho factor como un INTERCEPTO ALEATORIO en el modelo.
+Cuando el efecto de una variable pueda variar entre individuos (u otro grupo) debe considerarse para su inclusión como PENDIENTE ALEATORIA.
+
+
+EJEMPLO
+
+Vamos un estudio de caso donde predecir la riqueza de especies (macrobentos) en relación a la altura respecto al nivel del mar (NAP) en un conjunto de playas holandesa. Este ejemplo nos permitirá evaluar distintos modelos y su interpretación.
+
+La diferencia entre un modelo lineal nulo(solo con b0) y un modelo lineal mixto nulo es que existe varios niveles en el intercepto(b0), en nuestro caso según cada playa. Tenemos por lo tanto esto: RICHij = B0j + Eij; donde B0j = Y00 + u0j donde la primera es el intercepto fijo y el segundo es el intercepto aleatorio. 
+
+Ahora lo interesante es ver el modelo lineal mixto (con intercepto y pendiente aleatorios).
+Además de varios niveles en el intercepto (varia en función de la playa en nuestro caso), tenemos varias pendientes (varian también de la playa pero respecto al predictor que estudiamos, el nivel del mar(NAP)). Tenemos entonces:
+
+RICHij = B0j + B1j*NAPij + Eij
+Intercepto aleatorio -> B0j = Y00 + Y01BEACHj + u0j donde la primera es el intercepto fijo, el segundo es el intercepto aleatorio que varía en función de la playa y el tercero un error
+Pendiente aleatoria -> Bij = Y10 + u1j donde el primero es la pendiente fija y el segundo un residuo.
+
+Los parámetros que tenemos aqui son: 
+Fijos: el intercepto Y00; el efecto principal de NAP Y10
+Aleatorios: varianza en interceptos aleatorios (var[u0j]); varianza en pendiente aleatoria de NAP (var[u1j]); covarianza entre interceptos aleatorios y pendiente aleatoria de NAP (cov[u0j, u1j]); varianza residual (var[Eij]).
+ 
+COMPARACIÓN MODELO LINEAL CLÁSICO CON MIXTO
+
+Clasico: 
+- 1 intercepto y 1 pendiente
+```{r}
+library(ggplot2)
+data("RIKZ")
+LMO <- lm(Richness ~ NAP, data=RIKZ)
+ggplot(LMO, aes(RIKZ$NAP, RIKZ$Richness)) + geom_point() + stat_smooth(method = lm)
+```
+Estima 3 parámetros
+
+- varios interceptos y 1 pendiente
+```{r}
+LM1 <- lm(Richness ~ NAP + factor(Beach), data=RIKZ)
+ggplot(LM1, aes(RIKZ$NAP, RIKZ$Richness, color=RIKZ$Beach)) + geom_point() + stat_smooth(method = lm)
+```
+Estima 11 parámetros: 1 intercepto por cada playa(9), la pendiente(que es la misma para todas), y la varianza del error.
+
+- 1 intercepto y varias pendeintes.
+```{r}
+LM2 <- lm(Richness ~ NAP + factor(Beach):NAP, data=RIKZ)
+ggplot(LM2, aes(RIKZ$NAP, RIKZ$Richness, color=RIKZ$Beach)) + geom_point() + stat_smooth(method = lm)
+```
+Incluiríamos iteraccion pero manteniendo la contante, en este caso sería 11 parámetros.
+
+- varios interceptos y varias pendientes
+```{r}
+LM3 <- lm(Richness ~ NAP * factor(Beach), data=RIKZ)
+ggplot(LM3, aes(RIKZ$NAP, RIKZ$Richness, color=RIKZ$Beach)) + geom_point() + stat_smooth(method = lm)
+```
+Este supondría poner la iteracción completa. en este caso estimamos 19 parámetros, y podríamos tener un problema de sobreajuste. Y no se tiene en cuenta que las observaciones no son totalmente independientes entre sí.
+
+Las interacciones entre los factores A y B se pueden especificar usando A * B(interacción y efectos principales) o A:B(solo la interacción).
+
+Mixto
+- intercepto aleatorio
+```{r}
+library(lme4)
+lmer(Richness ~ NAP + (1|Beach), data=RIKZ) #1 intercepto aleatorio
+```
+Estima 4 parámetros: intercepto, pendiente, varianza intercepto aleatorio, varianza error
+
+- pendiente e intercepto aleatorio
+```{r}
+lmer(Richness ~ NAP + (1 + NAP|Beach), data=RIKZ) #1 a la izq de la barra indica la pendiente aleat y a la derecha intercepto aleat
+```
+Estima 5 parámetros: intercepto, pendiente, varianza intercepto, varianza pendiente, varianza error.
+Los que tienen mayor pendiente (las playas con relación más negativa) son tambiénlos que mayor riqueza (mayor intercepto).
+
+Usamos menos parámetros por lo tanto menos sobreajuste.
+
+	        modelo	                                      sintaxis
+1	interceptos aleatorios solamente	         Richness ~ NAP + (1 | Beach)
+2	interceptos y pendientes aleatorias	       Richness ~ NAP + (1 + NAP | Beach)
+3	modelo 2 sintaxis alternativa	             Richness ~ NAP + (NAP | Beach)
+4	solo pendientes aleatorias	               Richness ~ NAP + (0 + NAP | Beach)
+5	modelo 2 sin correlación entre 
+intercepto y pendiente (covarianzas cero)    Richness ~ NAP + (NAP || Beach)
+
+Podemos calcular la cantidad de variación total en riqueza que se atribuye a la agrupación de playas versus la variación residual. 
+
+ICC(correlación intra-clase) = VARu0(varianza intercepto alea) / (VARu0 + VARe)(VAR total)
+
+La función VarCorr() en el paquete lme4 devuelve las desviaciones estándar, no las varianzas, para un ajuste de modelo a través de la función lme4 :: lmer (). La función de summary() informa tanto de las variaciones como las desviaciones estándar. También podemos utilizar la función icc() del paquete performance para obtener la correlación intra-clase.
+
+Aquí te enseño ambas opciones:
+
+```{r}
+library(dplyr)
+library(lme4)
+VarCorr(fit0) %>% print(comp = c("Variance", Std.Dev), digits=3)
+
+8.97/(8.97+15.51)
+performance::icc(fit0)
+```
+La correlación intra-clase es 0.366, esto quiere decir que el 36.6% de la varianza en la riqueza de especies ocurre a nivel de grupo de playa.
+
+De este modo podemos estimar el tamaño efectivo de la muestra para las 5 muestas tomadas en cada playa pero con correlación: 5 ∗ 0.48 = 2.4. Es decir, las observaciones no son independientes, realmente tenemos solo 2.4 observaciones efectivas en cada playa.
+
+NOTA: la fórmula para la correlación intraclase y para el tamaño efectivo depende del tipo de modelo.
+
+Los LMM tiene ciertos PROS y ciertos CONTRAS
+
+PROS 
+- Tiene en cuenta la correlación entre individuos, dentro del grupo.
+- Mejora la precisión de la estimación e inferencia de los parámetros.
+- estima los componentes de la variación dentro y entre grupos.
+- Los grupos son considerados al azar, permitiéndo realizar predicciones para grupos no medidos.
+
+CONTRAS
+- Necesitan muchas observaciones
+- Pueden ser inestables si los tamaños de los grupos son muy desiquilibrados.
+- Dificultad para decidir la importancia o siginifcado de la variación entre grupos.
+- Especificación incorrecta de los efecto aleatorios
+- Dificultad para seleccionar modelos 
+
+
+SELECCION DEL MEJOR MODELO LINEAL MIXTO
+
+Ya hemos visto como formular hipótesis para comprobar si existe relación entre variables, generado un modelo para probar la H0 y tomando una decisión según resultados. 
+
+Un enfoque alternativo es evaluar simultaneamente múltiples hipótesis en competencia, con cada hipótesis representada en un modelo separado. Esto es lo que permite la seleccion de modelos.
+
+Un enfoque sería utilizar una medida de ajuste del modelo o poder explicativo(como R2) y, al mismo tiempo, penalice la complejidad del modelo.
+- Los criterios de información más utilizados son: AIC(akaik), AICc(corregido), BIC(bayesiano).
+- Cuanto menor sea el valor del coeficiente, mejor será el modelo.
+- Además, permiten comparar los pesos relativos de diferentes modelos y permiten utilizar múltiples modelos para inferencias.
+
+El método de estimación del modelo se basa en la verosimilitud que es la probabilidad de los datos observados en función de los parámetros del modelo. Existen 2 métodos para hallar los parámetros que determinan una mayor verosimilitud:
+
+- ML (máxima verosimilitud): no contempla una pérdida de grados de libertad en la estimación del modelo.
+   - Utiliza ML para ajustar: modelos anidados que difieren solo en la inclusión / exculsión de los efectos FIJOS, para probar la significación de los parámetros a través de una prueba de razón de verosimilitud LRT.
+   
+- REML (máxima verosimilitud restringida): por defecto.
+   - Utiliza REML para ajustar: modelos anidados que difieren solo por la inclusión / exclusión de efctos ALEATORIOS, para probar la significación de los parámetros a través de una prueba de razón de verosimiltud [^1], y para el modelo FINAL.
+   [1] y el modelo NULO (en el que basas los cálculos de ICC)
+   
+Estrategia STEP-UP para selección del modelo
+1. Comenzar con un modelo donde la estructura fija sea tan compleja como sea posible y lógico.
+2. Elegir el modelo con la mejor parte aleatoria. Ajustar modelos con diferenctes estructuras aleatoria anidadas (con REML) y compararlos. AIC o ANOVA
+3. Elegir el modelo con la mejor parte fija. Ajustar modelo con diferente estructura fija (con ML) y compararlos. AIC o ANOVA
+4. Presentar el moodelo final ajustado (con REML).
+5. Diagnosticar el modelo final ajustado (con REML).
+
+PASO 1: crea un modelo saturado
+```{r}
+install.packages("remotes")
+remotes::install_github("romunov/AED")
+library(AED)
+data(RIKZ)
+RIKZ$Beach <- as.factor(RIKZ$Beach)
+```
+Utilizaremos la Exposición y la interacción entre NAP y Exposición como efectos adicionales.
+
+PASO 2: optimizar la estructura de los efectos aleatorios.
+```{r}
+library(lme4)
+# Modelo de intercepto aleatorio
+fit.I <- lmer(Richness ~ NAP*Exposure + (1|Beach), REML=TRUE, data=RIKZ)
+# Modelo de intercepto y pendiente aleatorios
+fit.IS <- lmer(Richness ~ NAP*Exposure + (1 + NAP|Beach), REML=TRUE, data=RIKZ)
+```
+```{r}
+# Compara modelos por AICc, corregido que son para muestras pequeñas
+library(MuMIn)
+AICc(fit.I, fit.IS)
+```
+```{r}
+# Compara modelos anidados por prueba LRT
+anova(fit.I, fit.IS, refit=FALSE) # ¿pendiente aleatoria para NAP?
+```
+Vemos que el modelo mas parsimonioso es el modelo fit.I, con intercepto aleatorio, que normalmente suele ser este.
+
+PASO 3: Opimizar la estructura de efectos fijos
+
+```{r}
+#modelo completo con efectos ffijos y su interaccion
+fit.I.expNAPfull <- lmer(Richness ~ NAP*Exposure + (1|Beach), REML=FALSE, data=RIKZ)
+```
+
+```{r}
+#modelo sin iteraccion
+fit.I.expNAP <- lmer(Richness ~ NAP+Exposure + (1|Beach), REML=FALSE, data=RIKZ)
+```
+
+```{r}
+#modelo sin interaccion ni efecto principal exposure
+fit.I.NAP <- lmer(Richness ~ NAP + (1|Beach), REML=FALSE, data=RIKZ)
+```
+
+```{r}
+#modelo sin interaccion ni efecto principal NAP
+fit.I.exp <- lmer(Richness ~ exposure + (1|Beach), REML=FALSE, data=RIKZ)
+```
+
+```{r}
+#modelo sin efectos fijos (sin predictores)
+fit.I.null <- lmer(Richness ~ (1|Beach), REML=FALSE, data=RIKZ)
+```
+
+mantenemos en todos la estructura  aleatoria y vamos cambiando la fija
+
+Comparamos mediante AICc
+```{r}
+AICc(fit.I.exp, fit.I.expNAP, fit.I.expNAPfull, fit.I.NAP, fit.I.null)
+```
+Seleccionamos el modelo con menor AICc, en nuestro caso el full. Pero como vemos que la diferencia es de apenas 2 puntos, que es cuando una diferencia empieza a ser importante podemos comparar mediante prueba LRT
+```{r}
+anova(fit.I.expNAP, fit.I.expNAPfull) #incluir interaccion?
+```
+Entonces inclimos interaccion.
+
+PASO 4: reajustar con REML e interpretar
+
+```{r}
+fit <- lmer(Richness ~ NAP*Exposure + (1|Beach), REML=TRUE, data=RIKZ)
+summary(fit)
+```
+La verosimilitud es: REML criterion at convergence: 221 (no se suele interpretar)
+Y en general obtenemos datos de los efectos aleatorios, fijos, desviaciones y estimaciones.
+
+
+DIAGNÓTICO DEL MODELO
+
+Los supuestos del modelo lineal mixto son:
+
+- Normalidad, la variable respuesta procede de una distribución normal, sino GLMM.
+- Linealidad, la variable respuesta está relacionada linealmente con los predictores, sino GAMM
+- Homocedasticidad, los efectos aleatorios múltiples se consideran independientes entre sí, sino revisar nuevos predictores, incluir estructuras de covarianza o GLMM.
+- Ausencia de outliers y valores influyentes.
+
+Linealidad
+```{r}
+plot(resid(fit), RIKZ$Richness)
+```
+Si obtiveramos un patrón en forma de campana o una forma curva, no tendríamos linealidad, en este caso sí.
+
+Homogeneidad de varianza
+```{r}
+library(devtools)
+devtools::install_github("goodekat/redres")
+library(redres)
+plot_redres(fit, type="std_cond")
+```
+Si vemos que la dispersión de los datos es demasiado distinta se diría que tenemos heterocedasticidad. En este caso salvo un parde outliers no se observa un patron demasiado claro. Aunque se podría interpretar que hay heterocedasticidad, se podría intentar ajustar otro tipo de modelo, el Richness es una variable de conteo por lo que se podría interntar usar un modelo generalizado de poisson.
+
+Normalidad y outliers
+```{r}
+plot_resqq(fit)
+```
+
+Vemos que hay una cola que se separa del intervalo de confianza, por lo que si podría ser mejor una distribución de poisson que tiene mayor variabilidad cuando aumenta la media.
+
+Los efectos aleatorios también deben distribuirse de forma normal
+```{r}
+#crea gráficos de cuantiles normales para cada efecto aleatorio
+plot_ranef(fit)
+```
+
+Vemos que se comporta bastante bien excepto los últimos dos puntos.
+
+
+COMUNICAR LOS RESULTADOS
+
+```{r}
+library(report)
+summary(report(fit))
+```
+Aqui obtenemos un resumen bien detallado sobre el modelo, el poder explicativo R2, general(conditional) y parcial a los efectos fijos(marginal), el valor del intercepto, y los valores de los coeficientes.
+Para interpretar mejor la interacción del modelo podemos graficarlo.
+```{r}
+library(effects)
+ee <- as.data.frame(Effect(c("NAP", "Exposure"), mod=fit))
+library(ggplot2)
+ggplot(ee, aes(NAP, fit, group=Exposure, color=Exposure)) + geom_line()
+```
+
+La riqueza de especies en función del NAP agrupado por exposición
+
+Para la determinación del R2 global y parcial
+```{r}
+library(performance)
+r2(fit)
+```
+Y para determinar el R2 para cada efecto fijo
+```{r}
+library(r2glmm)
+r2beta(fit, method = "kr", partial=T, data=RIKZ)
+```
+La exposición y el modelo global son los que más explican el modelo.
+
+Para punlicar una tabla con los coeficientes
+```{r}
+library(texreg)
+texreg(fit, single.row = TRUE, float.pos = "p!")
+```
+Si queremos obtener la ecuación del modelo esta es la mejor función
+```{r}
+library(equatiomatic)
+extract_eq(fit, mean_separate = TRUE, wrap = 30)
+```
+
+Podemos obtener también los efectos aleatorios y fijos
+```{r}
+#estimación para efectos aleatorios
+head(ranef(fit))
+```
+```{r}
+#estimación para efectos fijos
+fixef(fit)
+```
+Si combinamos estos efectos obtenemos los coeficientes del modelo para cada efecto aleatorio
+```{r}
+coef(fit)
+```
+Obtenemos que el intercepto cambia para cada playa pero que los efectos fijos no se ven influenciados, siempre son los mismos
+
+ESTRUCTURAS DE CORRELACIÓN MÁS COMPLEJAS
+
+Las consecuencias de ignorar la autocorrelación pueden ser: que el tamaño de muestra se encuentra inflado artificialmente; y los errores estándar de los coeficientes son más pequeños de lo que deberían ser, aumentando la probabilidad de cometer el error tipo I.
+
+El modelo lineal mixto por defecto utiliza una matriz de correlación simétrica para modelar la estructura de correlación de los datos, llamada corSymm. En algunos casos, como cuando trabajamos con datos temporales o espaciales, necesitamos utilizar matrices de correlación más complejas
+
+Autocorrelación temporal
+Las observaciones que están más cercanas en el tiempo son más parecidas en el timpo que las lejanas. Y se espera que a medida que pase el tiempo los efectos de autocorrelación se vuelvan menores.
+Tienen una sola dimensión (dirección de pasado a presente).
+Para detectar el tipo de autocorrelación que tenemos usamos correlogramas; ACF(función de autocorrelación) y PACF(función de autocorrelación parcial). Nos indica si hay una dependencia de 1 tiempo, 2 tiempos o más.
+
+Tipos de estrucura para la autocorrelación temporal:
+1. Estructura de correlación de simetría compuesta: corCompSymm
+- Asume que la correlación es la misma independientemente de la distancia (lag) entre dos residuos.
+- Muy sencilla, puede se útil para series cortas.
+2. Estructura de correlación AR-1: corAR1
+- Asume que la correlación decae con el tiempo.
+- Sencilla pero realista.
+3. Estructura de correlación ARIMA: corARMA (más complejas)
+- Parte Ar: regresión de la variable en sus propios valores del pasado(con cierto lag). El parámetro p indica el orden autorregresivo.
+- Parte MA: modela el error como producto de varios términos aleatorios que ocurren en el presente y en el pasado (hasta cierto punto del pasado). El parámetro q define que las observaciones separadas por más de q unidades no están correlacionadas ya que no comparten parámetros.
+
+Autocorrelación espacial
+
+Aquí si tenemos al menos 2 dimensiones y más de 1 dirección. Se espera wue a mayor distancia los efectos de la autocorrelación se vuelvan menores.
+Detectar mediante gráficos de burbujas y variogramas.
+- Semivaerianza: medida del grado de diferencia entre 2 puntos. Si existe autocorrelación espacial, las observaciones más cercanas en el espacio deberían presentar respuestas semejantes ( y residuos semejantes) y por tanto bajos valores de semivarianza.
+- Los variogramas asumen isotropía (notienen en cuenta la dirección)
+
+Los tipos de estructura que podemos especificar con la autocorrelación espacial son:
+1. corExp	   correlación espacial exponencial.
+2. corGaus	 Correlación espacial gaussiana.
+3. corLin	   correlación espacial lineal.
+4. corRatio	 Correlación espacial cuadrática racional.
+5. corSpher	 correlación espacial esférica.
+
+
+EXTENSIONES DEL MODELO LINEAL MIXTO
+Cómo hacer frente a la falta de normalidad de los datos utilizando modelos lineales mixtos generalizados (GLMM) y SOBRETODO cómo manejar problemas del incumplimiento de la homocedasticidad incluyendo estructuras de varianza específicas.
+
+Hasta ahora hemos asumido que la varianza es constante, pero en ocasiones nos encontramos que:
+- la varianza aumenta al aumentar la magnitud de la respuesta.
+- las varianzas son distintas para los distintos grupos
+- la varianza depende de un predictor
+En estos casos podemos modelar la varianza como función de covariables, de un factor de agrupación o de la media de la variable respuesta. Para ello no podemos utilizar el paquete lme4 sino el nlme.
+
+Existen algunas estructuras asociadas a la heterogeneidad:
+1. varIdent(): diferentes varianzas en cada nivel de factor de agrupación.
+2. varFixed(): la varianza es proporcional a los valores de la covariable.
+3. varPower() y varExp(): generaliza lo anterior, la varianza del error es proporcional a una potencia o exponencial de la covariable.
+4. varComb(): permite combinar (como producto) varios tipos de funciones de varianza.
+Por ejemplo:
+```{r}
+library(nlme)
+lme(respuesta ~ predictor, data=datos,        #especificar la estructura fija
+    random = ~ 1|student,                     #especificar la estructura aleatoria
+    weights = varIdent(form = ~ 1|occasion))  #especificar la estructura de varianza
+```
+
+
+GLMM
+Por otro lado, los LMM también pueden generalizarse, permiten incluir en el modelo estructuras de errores que no siguen una distribución NORMAL, además de factores aleatorios.
+```{r}
+fit.glmer <- glmer(Richness ~ NAP + (NAP|Beach), data=RIKZ, family = poisson)
+summary(fit.glmer)
+```
+

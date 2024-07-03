@@ -1,0 +1,200 @@
+---
+title: "Modelos aditivos GAM"
+author: "Daniel Barandiarán"
+date: '2022-03-30'
+output: html_document
+---
+
+¿Qué problema solucionan los GAMs?
+
+- Un modelo lineal intenta ajustarse a la mejor línea recta que pasa a través de los datos, por lo que no funciona bien para todos los conjuntos de datos.
+- Por el contrario, un GAM puede capturar relaciones complejas ajustando una función suave no lineal a través de los datos, mientras controla qué tan ondulado puede llegar a ser
+
+Los GAM se basan en un modelo atractivo y simple:
+
+- Las relaciones entre los predictores individuales y la variable dependiente siguen patrones suaves que pueden ser lineales o no lineales. Es decir, el impacto de las variables predictivas se captura a través de funciones de suavizado no paramétricas.
+- Podemos estimar estas relaciones suaves simultáneamente y luego predecir la respuesta media simplemente sumándolos (de ahí su nombre de aditivo).
+-Permite una estimación flexible.
+
+y = b0 + f(x1) + e
+La contribución al predictor lineal es una función f(splines), y donde e~N(0,desv.t)
+
+Podemos tener combinaciones de términos lineales y suaves en el modelo.
+y = b0 + b1*x1 + f(x2) + e
+
+Podemos también ajustar un modelo que combine términos lineales y términos de suavizado, incluso distribuciones generalizadas y efectos aleatorios, como en modelos anteriores que hemos visto.
+Las funciones de suavizado f para los predictores pueden adoptar formas muy flexibles. Los suavizados f están compuestas muchas funciones base más pequeñas (bases Bj) que se multiplican por unos parámetros (&) y suman para crear la forma suave general, es decir, función f es una combinación lineal de funciones base B.
+
+Hay al menos tres buenas razones por las que desea utilizar GAM: 
+
+- Interpretabilidad. En los modelos aditivos, la interpretación del impacto marginal de un solo predictor no depende de los valores de las otras variables del modelo. Por lo tanto, podemos interpretar fácilmente los efectos de los predictores.  
+
+- Flexibilidad. Aquí no tenemos que saber de antemano qué tipo de funciones necesitaremos. Esto no solo nos ahorrará tiempo, sino que también nos ayudará a encontrar patrones que podríamos haber pasado por alto con un modelo paramétrico.  
+
+- Regularización. En los GAMs podemos controlar el suavizado para evitar el sub y sobreajuste. Al controlar la ondulación de las funciones de predicción, podemos equilibrar los componentes de sesgo / varianza.
+Los GAM logran un buen equilibrio entre la facilidad de interpretación similar a los modelos lineales, y la flexibilidad/regularización típica de modelos no paramétricos como los de MACHINE LEARNING.
+
+En esta lección utilizaremos la función gam() del paquete mgcv (tambien se puede usar el paquete gam(debes instalarlo previamente).
+
+Estos son los argumentos que debes ingresar:
+
+```{r}
+library(mgcv)
+gam(formula = RESPUESTA ~ s(PREDICTOR),
+    data = DATOS,
+    method = "REML", # tiende a ser más robusto
+    family = gaussian(), ...)
+```
+    
+-formula. la fórmula con la respuesta y el/los predictores. Ajustamos un suavizado s() al predictor, con lo cual indicamos que la relación entre el predictor y la respuesta puede ser no lineal.
+-data. los datos, donde se encuentran las variables respuesta y predictores
+-method. El método de ajuste, que te recomiendo sea REML para obtener resultados más robustos.
+-family. La familia de la distribución que quieres ajustar. Si es la normal no debes indicar nada, ya que la gaussiana es la seleccionada por defecto, pero si tienes datos binarios debes indicar la logística y para datos de conteo la distribución de poisson.
+
+Interpretación de resultados
+Al igual que con otros modelos utilizamos la función summary para obtener el resumen del modelo.
+```{r}
+library(gapminder)
+data(gapminder)
+head(gapminder)
+```
+
+```{r}
+fit.gdp <- gam(lifeExp ~ s(gdpPercap), data=gapminder, method="REML")
+summary(fit.gdp)
+```
+Tenemos: el modelo ajustado; términos lineales (paramétricos); terminos no lineales (no paramétricos); ajuste global.
+En la los términos de suavizado (no lineales) tenemos el valor edf, donde el valor 1 sería lineal, el 2 una curva cuadrática, y cuanto mayor sea describirá curvas más onduladas. Un edf alto no significa mayor importancia.
+En la de ajuste global tenemos el R2 ajustado y demás.
+
+Podemos observar los coeficientes de cada uno de las funciones base del suavizado. 
+```{r}
+coef(fit.gdp)
+```
+Los parámetros de la función del suavizado son los coeficientes por las que se multiplica cada una de las bases. Estos parámetros se ajustan a partir de los datos de la muestra, por ello cada suavizado de un predictor tendrá varios parámetros, al contrario que los lineales que solo tienen un parámetro asociado.
+
+Con la función visreg() del paquete del mismo nombre, podemos obtener los efectos parciales, que muestran el efecto de cada término que se suma a la predicción general. De forma predeterminada se incluyen los errores estándar en los gráficos para mostrar el IC al 95%
+
+Necesitamos un suavizado cuando no podemos graficar una linea horizontal para la relación.
+```{r}
+library(visreg)
+visreg(fit.gdp)
+```
+
+
+BONDAD DE AJUSTE
+
+Veamos ahora como evaluar la bondad de ajuste del modelo o cómo escoger el mejor suavizado para nuestros datos.
+Debemos tener un equilibrio entre:
+- Evitar el subajuste: no queremos una curva lejana a los datos (como una linea recta)
+- Evitar el sobreajuste: no queremos una curva que siga el ruido de los datos sino la tendencia
+
+Para modificar el suavizado:
+
+1. Parámetro sp(suavizado): podemos dejar que la función gam() seleccione el parámetro por nosotros. Existen varios métodos diferentes apra esta selecciópn (método REML para obtener resultados estables).
+Podemos seleccionar el parámetro de suavizado mediante el argumento sp
+```{r}
+fit1 <- gam(lifeExp~s(gdpPercap) + s(pop), sp=0.4, #sp para todo el modelo
+            data=gapminder, method="REML")
+fit2 <- gam(lifeExp~s(gdpPercap, sp=0.4) + s(pop), #sp para untérmino
+            data=gapminder, method="REML")
+par(mfrow=c(1,2))
+visreg(fit1, "gdpPercap")
+visreg(fit2, "gdpPercap")
+```
+
+2. Número de funciones base k: Un número pequeño de funciones base está limitando en su capacidad para reproducir la relación, mientras que muchas funciones base son capaces de capturar patrones más finos.
+```{r}
+fit3 <- gam(lifeExp~s(gdpPercap, sp=0.1, k=3), #para 3 funciones base
+            data=gapminder, method="REML")
+fit4 <- gam(lifeExp~s(gdpPercap, sp=0.1, k=8), #para 8 funciones base
+            data=gapminder, method="REML")
+par(mfrow=c(1,2))
+visreg(fit3, "gdpPercap")
+visreg(fit4, "gdpPercap")
+```
+
+GAM CON MULTIPLES PREDICTORES
+
+Podemos crear un modelo con distintos suavizados, incluso de efectos lineales, con predictores continuos y categóricos.
+```{r}
+fit_gdp_pop <- gam(lifeExp ~ s(gdpPercap) + s(pop), data=gapminder)
+par(mfrow = c(1,2))
+visreg(fit_gdp_pop)
+```
+
+Vemos que los dos tiene una forma no lineal, el modelo calcula otra función de suavizado para el otro predictor y suma los efectos, esta suma es lo que da el nombre de aditivos.
+
+```{r}
+summary(fit_gdp_pop)
+```
+Vemos que ambos predictores son significativos, y poseen un edf alto(tiene bastantes ondulaciones). Y tenemos un R2 del 69%(antes teniamos 67% por lo que el nuevo predictor no aporta demasiado).
+
+Pero vamos a comparar los modelos por ejemplo con la función de akaike AIC
+```{r}
+library(MuMIn)
+AICc(fit.gdp, fit_gdp_pop)
+```
+Vemos que efectivamente el segundo modelo es mejor.
+
+Podemos agregar también términos lineales. Usamos sobretodo con predictores categoricos ya que no tiene sentido usar funciones no lineales para estos. La variable categórica DEBE ser factor.
+```{r}
+fit_gdp_cont <- gam(lifeExp ~ s(gdpPercap) + continent, data=gapminder, method = "REML")
+par(mfrow=c(1,2))
+visreg(fit_gdp_cont)
+```
+
+Interpretaciónd e los resultados
+```{r}
+anova(fit_gdp_cont) #evalúa continent de forma global
+```
+Vemos que el término paramétrico es significativo, al igual que ek no paramétrico.
+
+```{r}
+summary(fit_gdp_cont)
+```
+En el resumen del modelo observamos además cada coeficiente de los valores de la variable categórica, que vemos que son todos significativos.
+
+Por último podemos realizar una INTERACCIÓN FACTOR-SUAVIZADO:
+```{r}
+fit_gdp_by_cont <- gam(lifeExp ~ s(gdpPercap, by=continent), data=gapminder, method = "REML")
+visreg(fit_gdp_by_cont, "gdpPercap", by="continent") 
+```
+Vemos que en Europa y Africa hay una función no lineal mientras que en el resto lo son bastante. Además vemos que hay mayor incertidumbre en estas dos primeras.
+
+Interpretación
+```{r}
+summary(fit_gdp_by_cont)
+```
+Vemos que ahora aparece un término de suavizado para cada continente.
+
+DIAGNÓSTICO DEL MODELO
+
+Podemos obtener un diagnóstico completo con la función gam.check()
+```{r}
+gam.check(fit_gdp_pop)
+```
+
+1. Evalúa si el número de funciones base k es adecuado.
+ - Convergencia del modelo: Si no converge es probable que no sea correcto, podemos estar incluyendo demasiadas funciones base(ocurre cuando le pedimos que calcule demasiados parámetros para la cantidad de datos que tenemos, o cuando es demasiado complejo)
+ - Verificación de la base: muestra una prueba estadística para el patrón de los residuos del modelo, que debe ser aleatorio. Cada linea muestra los resultados para un suavizado, vemos el valor k, edf, la prueba y el p-valor, y se va a comparar este k con los edf. Un P-valor pequeño muestra que los residuos no se distribuyen al azar y esto suele indicar que no hay suficientes funciones base(se puede ajustar con un k mayor y ver si la prueba es significativa).
+ 
+2. Gráfico de residuos.
+ - QQplot e Histograma -> normalidad
+ - Residuals vs fitted -> homogeneidad
+ - Response vs fitted -> linealidad
+ 
+3. Concurvidad(concurrencia)
+Está relacionado con la multicolinealidad
+ - Dos predictores pueden estar correlacionados, es decir, cuando un predictor es una combinación lineal del/los otro/s (multi-colinealidad).
+ - En AM incluso si 2 predictores no son colineales pueden tener concurvidad, es decir, un predictor puede ser una cuerva suave no lineal del otro.
+```{r}
+concurvity(fit_gdp_pop, full=TRUE) # evaúa para todas las demás variables
+```
+Esta función nos dice cúanto de cada suavizado está predeterminado por los demás suavizados.
+
+Hay 3 formas de medirlo, la peor, la observada, y la estimada. Nos fijamos en la peor, si la concurrencia es alta debemos evaluar los gráficos y tener cuidado con las interpretaciones. En este caso también podemos utilizar la misma función pero comparada por pares.
+```{r}
+concurvity(fit_gdp_pop, full=FALSE) # evaúa por pares
+```
+Este nos indica cuánto de una variable está predeterminada por otra variable en lugar de por todas. Se usa para identificar cuales variables tiene una relación cercana. Nos fijamos en el peor de los casos, en los valores más altos. Cuando nos fijamos en alguna podemos comprobar si hay valores de intervalo de confianza IC problemáticos, o formas o resultados raros.

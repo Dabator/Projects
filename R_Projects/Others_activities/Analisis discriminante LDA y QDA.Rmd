@@ -1,0 +1,386 @@
+---
+title: 'Análisis discriminante: LDA y QDA'
+author: "Daniel Barandiarán"
+date: '2022-05-30'
+output: html_document
+---
+
+Anteriormente hemos visto cómo el MANOVA (y perMANOVA) indica que existen diferencias entre los grupos para múltiples variables respuestas (en la combinación lineal de las estas variables respuestas). Los resultados no nos dicen, sin embargo, cuáles de los grupos difieren entre sí, ni nos dicen en cuántas dimensiones difieren los grupos y qué variables respuestas contribuyen más a las diferencias grupales. El análisis discriminante puede ayudarnos a responder estas preguntas.
+
+
+Objetivos:
+
+- Determinar cuándo es apropiado ejecutar una prueba MANOVA.
+- Verificar que los datos cumplan con los criterios para el procesamiento de MANOVA: tamaño de muestra, normalidad, correlación moderada, homogeneidad de varianza-covarianza ( prueba M de Box ) y homogeneidad de varianza (prueba de Levene).
+- Realizar una prueba MANOVA.
+- Obtener los resultados de las estimaciones y las tablas de comparaciones por pares.
+- Comunica los resultados.
+
+
+Introducción al análisis discriminante
+
+El análisis discriminant ecanónico  se lleva a cabo típicamente en conjunto con un diseño MANOVA de una vía. Aquí:
+
+- Conocemos de antemano la pertenencia de las observaciones a los grupos de estudio (categórica).
+- Tenemos un conjunto de variables (numéricas) que suponemos que diferencian los grupos.
+
+Representa una transformación linael de las variables de respuesta en un espacio canónico en el que: a) cada variable canónica sucesiva produce una separación máxima entre los grupos (por ejemplo, estadísticos F univariados máximos); y b) todas las variables canónicas no están correlacionadas entre sí.
+
+Un análisis discriminante canónico generalizado extiende esta idea a un modelo lineal multivariado general.
+
+Objetivos:
+- Discriminar (cómo podemos caracterizar los grupos). Identificar las características que diferencien los grupos.
+- Seleccionar variables. Seleccionar el menor número de variables explicativas necesarias para discrimnar de manera efectiva.
+- Clasificar (a qué grupo pertenecerá un nuevo caso/observación)
+
+¿Cómo funciona?
+
+- Se conoce de antemano la pertenencia a los grupos, variables respuesta o de agrupación (categórica).
+- Se tiene un conjunto de variables que suponemos que diferencian a los grupos, variables predictoras ( o discriminante; numéricas).
+
+Por ejemplo, quieres averiguar qué variables biométricas (ancho y largo de sépalos y pétalos) te permiten diferenciar las 3 especies de lirios (datos iris), y utilizar esta información para clasificar nuevas observaciones.
+
+Por tanto, calculamos una transformación lineal (llamada función discriminante D) de variables numéricas en un espacio de menor dimensión en el que (a) cada D sucesiva produce una separación máxima entre los grupos de estudio, y (b) las nuevas D no están correlacionadas entre sí.
+El número máximo de funciones discriminantes es igual al mínimo entre el número de  variables, y el número de grupos menos 1 (Si tenemos 2 variables y 2 grupos, entonces, entre 2 y 1, nos quedamos con 1).
+
+Como cualquier otro modelo lineal requiere que se cumplan determinados supuestos estadísticos (normalidad multivariada, homogeneidad de varianza-covarianza, independencia, etc.).
+
+
+Coeficientes de la función discriminante D
+
+D = b1 * variable1 + b2 * variable 2
+
+Coeficientes brutos (raw):
+- Se utilizan para la clasificación de los casos.
+- Dependen de las unidades de medida (escala) y de la variabilidad de las variables originales, por ello no son interpretables.
+
+Coeficientes estandarizados (std):
+- Genera una puntuación estandarizada que indica cuán lejos está el caso de la puntuación media.
+- Son independientes de las escalas de medida y de la variabilidad de las variables originales, por lo cual son interpretables.
+
+Estos últimos pueden estar correlacionados, por lo que finalmente trabajaremos con los siguientes coeficientes.
+
+Coeficientes de estructura (structure)
+- Es la multiplicación de los std y la correlación entrce la LD y la variable.
+- Indican qué tan relacionada está la LD con la variable [0,1]
+- No se ven afectadas por las relaciones con otras variables y por tanto reflejan la relación verdadera entre la LD y la variable.
+- También son independientes de las escalas de medida y la variabilidad de las variables originales, por lo cual son interpretables.
+
+
+Puntuaciones discriminantes
+
+- Las puntuaciones de los casos en la nueva dimensión se llaman puntuaciones discriminantes
+- Sustituyendo en la función discriminante el valor de las medias del grupo A en las variables 1 y 2 obtenemos el centroide del grupo A (lo mismo para el grupo B)
+- La distancia entre los dos centroides debe ser máxima, es decir, los grupos estarán lo más distantes posibles.
+
+
+Método
+
+Existen distintos métodos para realizar un análisis discriminante, utilizaremos aquí:
+
+Análisis discriminante lineal (LDA): Asume distribuciones normales multivariantes iguales para todos los grupos, y calcula funciones discriminantes lineales para clasificar a los casos según la mayor puntuación o probabilidad. lda{MASS} y candisc{candisc}
+
+
+Análisis discriminante cuadrático (QDA): Asume distribuciones normales multivariantes no iguales para todos los grupos, y calcula funciones discriminantes cuadráticas para clasificar a los casos según la menor distancia respecto al centro del grupo. qda{MASS} No requiere que se cumpla el supuesto de homogeneidad.
+
+Por otro lado, y que no vamos a utilizar, están: 
+- Análisis discriminantes kernel (KDA): Estima densidades específicas de todas las dimensiones para cada grupo y con una forma específica (opcional), y clasifica cada muestra en el grupo con mayor densidad local. kda.kde{ks} No normal.
+- Análisis discriminante del k-vecino más cercano (k-nn DA): clasifica cada caso en el grupo con mayor densidad local basado en un número dado de vecinos más cercanos. knn {class} No normal
+
+Los distintos métodos pueden no generar los mismos resultados.
+
+
+Aproximaciones al LDA
+
+Principalmente existen dos tipos de aproximaciones al LDA: la que utiliza el teorema de bayes y la aproximación de Fisher. Los resutados son iguales. Aquí utilizaremos la primera.
+
+- Haciendo uso del teorema de Bayes, se estima la probabilidad de que una observación, dado un determinado valor de las variables explicativas (predictores), pertenezca a cada uno de los grupos de la variable respuesta, 
+ej. P(Grupo=A|Variable1=x2, Variable=x2)
+- Finalmente se asigna la observación al grupo doble la probabilidad predicha sea mayor. 
+- En el caso particular de la respuesta tenga solo dos nivelees, el límite de decisión de Bayes viene dado por x=(u1 + u2)/2 donde u es la media poblacional.
+
+
+Supuestos
+
+- Los supuestos de análisis discriminantes son los mismos que los de los modelos lineales(ANOVA, MANOVA, regresión):
+
+1. La distribucióm normal multivariada.
+2. La homogeneidad de las matrices de varianza- covarianza
+3. Sin multicolinealidad.
+4. Independencia de las observaciones.
+
+Además, tener en cuenta.
+- Número suficiente de muestra.
+- Cada caso solo puede pertenecer a 1 grupo
+- Es deseable que no existan valores atípicos ni ausentes, de lo contrario habría que medir su efecto.
+
+
+- Normalidad.
+Cuando no se cumpla, el LDA pierde precisión pero aun así puede llegar a clasfificaciones relativamente buenas. También puede utilizarse aproximaciones no paramétricas (KDA y K-nn DA)
+
+- Homogeneidad
+Si no se cumple se recurre a Análisis Discriminante Cuadrático (QDA)
+
+
+Pasos a seguir
+
+1 Describir los datos
+2 Evaluar los supuestos del modelo
+3 Calcular las funciones discriminantes
+4 Contrastar e interpretar las funciones discriminantes 
+5 Seleccionar por pasos las variables explicativas.
+6 Validar las funciones discriminantes
+7 Predecir nuevos casos
+8 Aplicar métodos discriminantes alternativos (si se da el caso)
+
+En R existen varias funciones disponibles para realizar el Analisis discriminantes, útiles para cada caso:
+- candisc{candisc} que nos servirá en los pasos 3-4
+- lda{MASS} para los pasos 5 y 6
+- greedy.wilks{klaR} para el paso 7
+- qda{MASS} para QDA, Hkda y kda{ks} para KDA y knn.cv{class} para Knn DA; paso 8
+
+
+
+EJEMPLO DE APLICACIÓN
+
+Vamos a realizar la aplicacióncon los datos de vinos.
+
+1. Describir los datos
+
+```{r}
+library(candisc)
+data(Wine)
+head(Wine)
+str(Wine)
+```
+
+Volvemos a observar todas las varaibles químicas de las propiedades de los vinos.
+
+Podemos visualizar los datos con ggpairs
+
+```{r}
+library(GGally)
+#solo mostraremos un trozo ya que no queremos incluir todas las variables.
+ggpairs(Wine[,1:3], ggplot2::aes(colour=Cultivar))
+```
+
+
+2. Evaluar los supuestos del modelo
+
+
+Normalidad multivariante
+
+```{r}
+library(mvnormtest)
+mshapiro.test(t(Wine[,-1]))
+```
+
+Rechazamos la hipótesis nula de normalidad. Los datos no tienen una distribución normal multivariante (p<0.005)
+
+
+Homogeneidad de las matrices varianza-covarianza
+
+Mediante el test M de Box
+```{r}
+library(heplots)
+boxM(Wine[,-1], Wine$Cultivar)
+```
+
+Se rechaza la hipotesis nula de homogeneidad de varianza-covarianza. No cumple con el supuesto.
+
+
+Multicolinealidad
+
+Para evaluar este supuesto podemos ver la matriz de correlación y ver cuales tienen una correlación alta.
+```{r}
+round(as.dist(cor(Wine[,-1])),2)
+```
+
+Tenemos algun caso alto como entre la variable phenols y Flav, por lo que podríamos eliminar una de ellas, pero veremos más adelante un método de seleeción de variables. En general está bien así que continuaremos.
+
+
+
+3. Calcular las funciones discriminantes.
+
+Plantilla
+```{r}
+fit_lm <- lm(matrix_responses ~ groups)
+library(candisc)
+candisc(fit_lm,     # objeto lm()
+        term,       # término para el cual queremos el análisis
+        type="2"    # tipo de prueba "II", "III", "2" o "3"
+        ndim, ...) # número de dimensiones a retener
+```
+
+
+```{r}
+fit_lm <- lm(as.matrix(Wine[,-1]) ~ Wine$Cultivar)
+library(candisc)
+( fit_disc <- candisc(fit_lm))
+```
+
+Dentro de los resultados tenemos:
+- Percent. % de varianza relativa de cada LD.  Indica cuánto del poder discriminatorio total del modelo LDA viene dado por cada LD. (el total siempre es 100%).
+- CanRsq. Correlación canónica al cuadrado. Es la correlación múltiple entre la variable de agrupación y cada LD. Se suele utilizar su valor al cuadrado, [0,1] que indica la proporción de la variación total en la LD explicada por las diferencias entre los grupos.
+- Test. Se evalúa la hipótesis de que la correlación canónica vale 0 en la población.
+
+
+En nuestros resultados vemos que tenemos 2 funciones discriminantes (1 y 2). Los porcentajes de varianza relativa son del 68,7% y el 31,3%, siendo la primera la que más discrimina, por tanto mejor. Esto también nos lo indica la correlación canónica al cuadrado, que son del 0.9 y del 0.8, aunque a esto se refiere la proporción de la variación explicada por cada uno, así que obtenemos buenos valores.
+
+Por último tenemos los test de hipótesis, que nos indica que ambas funciones discriminantes son significativas.
+
+
+
+INTERPRETACIÓN
+
+
+Gráfico del LDA en 2D. plot(fit)
+- Cuanto más cercanos estén los casos más similares serán respecto a los gradientes definidos por las LD. Si los grupos están solapados es un indicio de que no son muy distintos.
+```{r}
+plot(fit_disc, ellipse=TRUE, var.cex=.6)
+```
+
+Se observa los vectores de cada variables, así como en los ejes, las dos funciones discriminantes. 
+En la función 1 se observa como separa a los tres grupos, con variables como el color y MalicAcid con relación positiva, y el alcohol y mg con relación negativa. 
+En la función 2 se observa como separa los grupos barolo y barbera de grignolino, con variables como alcohol y color con relación positiva, y Hue y AlcAsh con relación negativa
+
+Los tamaños relativos de las elipses de las puntuaciones canónicas es una señal visual de la falta de heterogeneidad de las variaciones.
+
+
+
+Gráfico del LDA en 1D. plot(fit, which=1 o 2)
+- Importancia de las variables y diferenciación de los grupos en cada eje.
+
+```{r}
+plot(fit_disc, which=1, var.cex=.6)
+```
+
+Consiste en un diagrama de cajas para las puntuaciones canónicas. Y un diagrama vectorial que muestra las magnitudes de los coeficientes de estructura.
+
+Vemos en el primer LDA que barolo se separa de barbera, encontrandose grignolino entre medias, dandose que barolo tiene mayor Flav y OD, y que barbera es el que tiene menor de estos.
+
+```{r}
+plot(fit_disc, which=2, var.cex=.6)
+
+```
+
+En esta función discriminante vemos que la clase grignolino se separa del resto, siendo el primero el que tiene menor alcohol y color.
+
+
+
+Selección de variables por pasos
+
+Podemos seleccionar las variables por pasos utilizando:
+
+```{r}
+library(klaR)
+greedy.wilks(Cultivar ~., data=Wine, method="lda", niveau=.05)
+```
+
+A través de este método, el estadístico de Greedy de Wilks se seleccionan por pasos las variable que minimiza el estadístico total de Landa de Wilks siempre que sea significativo. Por tanto la selección de variables está dada por la fórmula final que aparece en el resultado.
+
+Por tanto, la interpretación del LDA nos dice que tán bien están separados los grupos,y cuáles son las variables respuestas que mejor determinan la separación en cada eje.
+Los gráficos nos muestra que cuanto más cercanos estén los casos, más similares serán respecto a los gradientes definidos por las LD. Si están solapados es un indicio de que no son muy distintos.
+
+Además nos muestra la importancia de las variables y diferenciación de los grupos en cada eje, y un método de selección de variables por pasos.
+
+
+
+VALIDACIÓN Y PREDICCIÓN DEL LDA
+
+Para evaluar la bondad del modelo podemos realizar 2 tipos de validación (elige cuál se adapta mejor a tu situación).
+
+• Validación leave-one-out. Otra opción es quitar una observación, determinar las reglas de clasificación y clasificar la observación que hemos quitado. Aplicamos este proceso para cada observación dejando una fuera cada vez y se calcula la tasa de clasificaciones correctas para evaluar la fiabilidad y precisión de nuestro modelo. Es particularmente útil cuando el tamaño de la muestra es pequeño y no permite dividirla en 2 grupos.
+
+```{r}
+library(MASS)
+fit_lda_jac <- lda(groups ~ variables, data, CV=TRUE) 
+library(caret)
+confusionMatrix(data = groups, reference = fit_lda_jac$class)
+```
+
+Con CV=TRUE indicamos que realice la validación cruzada mediante este método.
+
+```{r}
+library(MASS)
+fit_lda_jac <- lda(Cultivar ~ ., Wine, CV=TRUE)
+library(caret)
+confusionMatrix(data = Wine$Cultivar, reference = fit_lda_jac$class)
+```
+
+Obtenemos la matriz de confusión, donde la diagonal indica el número de aciertos. 
+Además obtenemos la precisión (0.9888), el intervalo de confianza, así como el kappa que es la proporción de aciertos que no se han dado por azar.
+
+Por otro lado tenemos el análisis de sensibilidad para cada grupo.
+Con estos resultados podemos decir que es un buen modelo.
+
+
+• Validación por partición (datos de entrenamiento y prueba). Se divide la muestra aleatoriamente en 2 grupos, uno de entrenamiento y otro de prueba. Se calcula el criterio de clasificación con el conjunto de entrenamiento. Con este criterio se clasifican los casos del conjunto de prueba y se calcula la tasa de clasificaciones correctas para evaluar la fiabilidad y precisión de nuestro modelo.
+
+```{r}
+# construye los datos de entrenamiento y prueba
+fit_lda_p <- lda(groups ~ variables, data=train)
+confusionMatrix(test$groups, predict(fit_lda_p, newdata=test)$class)
+```
+
+Para evaluar la bondad del modelo utilizamos una tabla o matriz de confusión.
+
+```{r}
+set.seed(101)
+Wine_index <- sample(1:nrow(Wine), size = nrow(Wine)*.7)
+Wine_train <- Wine[Wine_index,]
+Wine_test <- Wine[-Wine_index,]
+
+fit_lda_p <- lda(Cultivar ~ ., data=Wine_train)
+confusionMatrix(Wine_test$Cultivar,
+                predict(fit_lda_p, newdata=Wine_test)$class)
+```
+
+En la matriz de confusión con los datos de test, que son los que se utiliza para comporbar el modelo, hemos obtenido solo 1 fallo. En la precisión hemos obtenido un 0.98 y en el kappa un 0.97. No quiere decir que este método sea mejor o peor ya que estos son los resultados para esta partición. 
+
+
+
+Predicción
+
+El último paso podría ser la predicción, si se desea.
+Si el modelo es bueno, puedes utilizarlo para predecir una nueva observación. Para ello construye un data.frame con los valores de todas las variables involucradas en el modelo y utiliza:
+
+```{r}
+pred <- predict(fit, newdata, interval="prediction")
+pred$posterior # nos da la probabilidad de pertenencia a cada clase
+pred$class # nos da la clase o grupo a la que pertenecerá la nueva observación
+```
+
+
+```{r}
+nuevo <- data.frame(Alcohol=14.23, MalicAcid=1.71, Ash=2.43, AlcAsh=15.6, Mg=127, Phenols=2.6, Flav=3, Color=5.5, Proline=1050, OD=4, Hue=1, NonFlavPhenols=0.30, Proa=2.20, )
+pred <- predict(fit_lda_jac, newdata=nuevo, interval="prediction")
+pred$posterior # nos da la probabilidad de pertenencia a cada clase
+pred$class # nos da la clase o grupo a la que pertenecerá la nueva observación
+```
+Es simple pero algo falla.
+
+
+
+ANÁLISIS DISCRIMINANTE CUADRÁTICO QDA
+
+Debido a que nuestros datos no cumplían con el supuesto de homogeneidad de varianza vamos a realizar una validación con un modelo QDA.
+
+```{r}
+Wine_qda <- qda(Wine[,-1], Wine$Cultivar, CV=T)
+confusionMatrix(Wine$Cultivar,
+                Wine_qda$class)
+```
+
+Observamos mediante este método que solo obtenemos un error. Y además que obtenemos mayor precisión y mayor kappa. Además de mejores resultados en los análisis de sensibilidad.
+
+
+Conclusiones
+
+Los datos Wine no cumplieron los supuestos de ausencia de multicolinealidad, normalidad multivariante, homogeneidad de matrices varianza-covarianza. ¿Qué podemos hacer? 
+
+- Respecto a la multicolinealidad, utiliza los coeficientes de estructura para la interpretación de las LD, o elimina las variables con mayor correlación, o selecciona las variables por pasos.
+- El LDA permite desviaciones de la normalidad pero no es tan bueno ante la falta de homogeneidad. Para hacer frente a ello hemos calculado posteriormente el modelo QDA. 
+
+La interpretación del QDA es similar a la del LDA. Para comparar la performance de ambos métodos calculamos una matriz o tabla de confusión y comparamos estadísticos . En este caso, el QDA parece dar mejores resultados.
+

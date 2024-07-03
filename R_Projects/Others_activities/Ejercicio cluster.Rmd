@@ -1,0 +1,149 @@
+---
+title: "EJERCICIO CLUSTER"
+author: "Daniel Barandiarán"
+date: '2022-04-11'
+output: html_document
+---
+
+Eercicio sobre criminalidad en los diferentes Estados de USA
+
+```{r}
+data("USArrests")
+library(GGally)
+ggpairs(USArrests)
+```
+Hay una relación positiva con cada uno de los pares de variables. Existe algunos par de outliers. (habría que eliminar dichos casos)
+
+```{r}
+USArrests_scaled <- scale(USArrests)
+USArrests_dist <- dist(USArrests)
+library(pheatmap)
+pheatmap(as.matrix(USArrests_dist), treeheight_row = 0, treeheight_col = 0)
+```
+Observamos rectángulos en rojo por lo que podríamos realizar una agrupación de Estados.
+
+Otra manera sería:
+```{r}
+library(factoextra)
+fviz_dist(mtcars_dist, lab_size = 0.1, show_labels = FALSE)
+```
+
+
+1. Utiliza las variables escaladas para realizar el análisis cluster de k-medias para crear 2 grupos de estados
+
+```{r}
+# estandariza los datos
+USArrest_scaled <- scale(USArrests)
+```
+
+```{r}
+# crea 2 grupos por el algoritmo de k-medias. Utiliza una semilla para reproducir los resultados.
+set.seed(123)
+USArrest_km <- kmeans(USArrest_scaled, centers = 2)
+```
+
+```{r}
+# observa los resultados de la agrupación, su calidad, centroides, variabilidad y tamaño de grupo
+USArrest_km
+```
+
+2. Grafica los resultados del análisis cluster. 
+
+```{r}
+library(factoextra)
+fviz_cluster(USArrest_km, USArrest_scaled, choose.vars = c("Murder","Assault"))
+fviz_cluster(USArrest_km, USArrest_scaled, ellipse.type = "norm", main="k=2 grupos")
+```
+
+```{r}
+library(flexclust)
+set.seed(123)
+cl_kcca <- as.kcca(USArrest_km, USArrest_scaled)
+barplot(cl_kcca) #para cada grupo
+barplot(cl_kcca, bycluster=FALSE) #para cada variable
+```
+
+
+ANALISIS CLUSTER JERÁRQUICO
+
+```{r}
+USArrest_scaled <- scale(USArrests)
+USArrests_dist <- dist(USArrests_scaled)
+```
+
+```{r}
+USArrests_maslejano <- hclust(USArrests_dist, method = "complete")
+```
+```{r}
+USArrests_mascercano <- hclust(USArrests_dist, method = "single")
+```
+```{r}
+USArrests_promedio <- hclust(USArrests_dist, method = "average")
+```
+```{r}
+USArrests_centroide <- hclust(USArrests_dist, method = "centroid")
+```
+```{r}
+USArrests_ward <- hclust(USArrests_dist, method = "ward.D2") #varianza mínima
+```
+
+```{r}
+par(cex=0.5, mar=c(5,8,4,1)) #para modificar el tamaño y los márgenes
+plot(USArrests_centroide, axes = FALSE) #axes para quitar o poner los ejes
+```
+
+```{r}
+par(cex=0.5, mar=c(5,8,4,1)) #para modificar el tamaño y los márgenes
+plot(USArrests_promedio, axes = FALSE) #axes para quitar o poner los ejes
+```
+
+```{r}
+par(cex=0.5, mar=c(5,8,4,1)) #para modificar el tamaño y los márgenes
+plot(USArrests_mascercano, axes = FALSE) #axes para quitar o poner los ejes
+```
+
+```{r}
+par(cex=0.5, mar=c(5,8,4,1)) #para modificar el tamaño y los márgenes
+plot(USArrests_maslejano, axes = FALSE) #axes para quitar o poner los ejes
+```
+
+```{r}
+par(cex=0.5, mar=c(5,8,4,1)) #para modificar el tamaño y los márgenes
+plot(USArrests_ward, axes = FALSE) #axes para quitar o poner los ejes
+```
+
+
+
+EJERCICIO. Selecciona el algoritmo y número de grupos óptimo (por estabilidad)
+Continuamos analizando la criminalidad de los EE.UU., ahora vamos a evaluar cuál es el mejor algoritmo de de agrupación (análisis cluster por k-medias vs jerárquico) y cuál es el número de grupos óptimo. 
+
+Completa los espacios en blanco y utiliza medidas de estabilidad para esta elección.
+
+¿Qué algoritmo de agrupación es mejor en este caso? ¿cuántos grupos indica que se deberían formar según el criterio de estabilidad?
+
+Instrucciones
+```{r}
+# escalamos los datos para evitar problemas con las unidades de las variables
+USArrests_std <- scale(USArrests)
+```
+
+```{r}
+# utilizamos medidas de estabilidad para seleccionar el algoritmo y númeor de grupos
+library(clValid)
+ stab <- clValid( USArrest_scaled, 
+                 nClust = 2:10, 
+                 clMethods=c("hierarchical","kmeans"), #hierarchical para jerárquico
+                 validation= "stability" )
+```
+
+```{r}
+# resumimos los resultados de la validación
+optimalScores(stab)
+```
+
+Encontramos que el método por k-medias es el más óptimo. Y que 2 de 4 las cuatro medidas de estabilidad nos sugieren 2 agrupaciones.
+```{r}
+plot(stab)
+```
+
+Aquí vemos que en realidad podríamos considerar tanto 2 como 10 agrupaciones, debido a la pequeña diferencia. Y también nos fijamos que en el caso de jerárquico siempre suele estar sobre la línea de k-medias, aunque se comporta de manera más estable en los cambios de grupo.

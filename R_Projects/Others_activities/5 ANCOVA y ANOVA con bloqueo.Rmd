@@ -1,0 +1,164 @@
+---
+title: "ANCOVA"
+author: "Daniel Barandiarán"
+date: "1/3/2022"
+output: html_document
+---
+
+
+ANCOVA
+
+En algunos casos, no tenemos la oportunidad de construir bloques, pero podemos reconocer y medir una variable continua que contribuye a la heterogeneidad en las unidades experimentales. Estas variables se conocen como "covariables".
+
+Cuando se incluye una covariable continua en un ANOVA, tenemos el análisis de covarianza (ANCOVA). El ANCOVA es realmente solo una cuestión de extender los modelos que ya hemos ajustado para incluir predictores CONTINUOS adicionales. Es un modelo que compara medias mientras se ajustan para una variable continua (covariable).
+
+En nuestro ejemplo debemos crear una covariable.
+```{r}
+library(rstatix)
+library(tidyverse)
+library(ggpubr)
+library(ggstatsplot)
+library(openintro)
+library(ggplot2)
+```
+
+```{r}
+set.seed(100)
+hsb2$IQ <-  rnorm(n=nrow(hsb2), mean=100, sd=15)
+hsb2 %>% group_by(prog) %>% get_summary_stats(math, IQ, type="mean_sd")
+```
+
+vemos en gráfico.
+```{r}
+ggscatter(hsb2, x="IQ", y="math", color="prog", add="reg.line", size = 1)
+```
+
+Podriamos decir que el programa general tiene una relaciópn positiva del IQ y las notas en mates. 
+
+Lo siguiente esverificar los supuestos. En este caso debemos verificar:
+
+- Homogeneidad de las pendientes de regresión. 
+
+No deberíamos encontrar una interacción entre factor y covariable 
+```{r}
+model <- lm(math ~ IQ*prog, data=hsb2) #con interacción
+anova_test(model)
+```
+En nuestro caso no hay una interacción significativa, por lo que cumple el supuesto.
+
+- Resto de los supuestos (los de siempre):
+Hay una forma de ver todos de una sola vez.
+```{r}
+model <- lm(math ~ IQ+prog, data=hsb2) #sin interacción (porque no hay)
+library(ggfortify)
+autoplot(model) + theme(tex=element_text(size=4))
+
+```
+
+EN el primero vemos que hay cierta dispersión en cada grupo, al igual que en el tercero. En el segundo vemosque hay pequeñas desviaciones. Y en general vemos los valores extremo señalados con números.
+
+Ajuste del modelo
+```{r}
+hsb2 %>% anova_test((math ~IQ+prog))
+```
+Vemos que en el caso del programa hay diferencias siginicativas.
+
+Pruebas post-hoc
+
+```{r}
+library(emmeans)
+pwc <- hsb2 %>% emmeans_test(math ~ prog, covariate = IQ, p.adjust.method = "bonferroni")
+pwc
+get_emmeans(pwc) #medias ajustadas
+```
+Vemos que hay diferencias entre general y académico y vocacional y académico.
+
+C>omunicar
+
+```{r}
+pwc <- pwc %>% add_xy_position(x="prog", fun="mean_se")
+ggline(get_emmeans(pwc), x="prog", y ="emmean") + 
+  geom_errorbar(aes(ymin=conf.low, ymax=conf.high), width= 0.2) +
+  stat_pvalue_manual(pwc, hide.ns=TRUE, tip.length=FALSE) +
+  labs(subtitle=get_test_label(res.aov, detailed=TRUE), caption=get_pwc_label(pwc))
+```
+
+Hemos tenido que crear un gráfico propio para comunicar los resultados.
+
+EXTRAs
+
+Enfoque robusto: Podemos obtener estimaciones de parámetros robustas usando robust :: lmRob() y pruebas robustas de estos parámetros usando parameters :: model_parameters(). Se utilizan exactamente de la misma manera que lm().  
+
+Diferencias entre Bloqueo y ANCOVA: Un factor de bloque es una variable categórica, mientras que una covariable es una variable numérica.
+En el ANCOVA ajustamos estadísticamente para tener en cuenta una covariable, mientras que en el bloqueo, diseñamos el experimento con un factor de bloque como componente esencial del diseño. 
+
+
+ANOVA CON UN FACTOR DE BLOQUE
+
+El ejemplo trata de comparar 4 procesos en la producción de pelicilina.
+
+```{r}
+library(rstatix)
+library(tidyverse)
+library(ggpubr)
+library(ggstatsplot)
+library(openintro)
+library(ggplot2)
+```
+
+```{r}
+library(faraway)
+data(penicillin)
+head(penicillin)
+```
+Podemos ver mejor los datos si los colocamos como matriz.
+```{r}
+xtabs(yield~blend+treat, data=penicillin)
+```
+
+El primer paso como siempre es describir y visualizar datos.
+
+```{r}
+ggplot(penicillin, aes(x=treat, y=yield, group=blend, linetype=blend)) + geom_line() + theme(legend.position = "top", legend.direction = "horizontal")
+```
+
+El siguiente paso es verificar supuestos.
+
+Aditividad (es decir, que no haya interacción:
+
+H0: efectos principales y de bloque son aditivos (no hay interacción)
+H1: efectos principales y de bloque no son aditivos (hay interacción)
+
+```{r}
+library(asbio)
+with(penicillin, tukey.add.test(yield, treat, blend))
+```
+Vemos que el P-valor es mayor a 0.05 por lo que no podemos rechazar la hipótesis nula.
+
+El siguiente paso es ajustar el modelo:
+```{r}
+(res.aov <- anova_test(data=penicillin, formula = yield ~ blend + treat))
+```
+Vemos que en la variable bloque es significativa, pero no nos importa porque lo unico que esperamos de esa variables es controlar la variación. Y vemos que treat no es significativo, por lo que controlando con el bloque vemos que no hay significatividad.
+
+Prueba post-hoc.
+
+En el caso de que hubiese significación nos interesaría hacer esta prueba.
+```{r}
+library(emmeans)
+fit <- lm(yield~blend+treat, penicillin)
+(pwc <- penicillin %>% emmeans_test(yield ~ treat, model=fit))
+```
+Como se esperaba, no hay ninguna significación.
+
+Por último comunicamos los resultados.
+
+```{r}
+bxp <- ggboxplot(penicillin, x="treat", y="yield", color="treat")
+pwc <- pwc %>% add_xy_position(x="treat")
+
+bxp + stat_pvalue_manual(pwc) + labs( subtitle = get_test_label(res.aov, detailed = T), caption =  get_pwc_label(pwc))
+
+
+```
+En teoría todo esos es para insertar en el gráfico los resultados 

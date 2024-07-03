@@ -1,0 +1,522 @@
+---
+title: "ANÁLISIS DE CORRESPONDENCIA (CA)"
+author: "Daniel Barandiarán"
+date: '2022-06-29'
+output: html_document
+---
+
+Análisis de correspondencia (CA).
+
+
+Resumen de la lección
+
+
+Anteriormente hemos visto el análisis de componentes principales (PCA) para la exploración y reducción de la dimensión en matrices de variables CUANDO son CUANTITATIVAS.
+
+Sin embargo, cuando las variables son CATEGÓRICAS Y AGRUPADAS, podemos utilizar para el mismo fin el análisis de correspondencias (CA) y análisis de correspondencias múltiples (MCA).
+
+El CA (y MCA) permite visualizar datos multivariados DE RECUENTO para ayudar a revelar las relaciones entre múltiples variables respuesta. No obstante, muchos otros tipos de datos (datos categóricos sin procesar, preferencias, calificaciones, mediciones continuas, distancias) se pueden recodificar en una forma adecuada para ser visualizados mediante análisis de correspondencia, por lo que CA es un marco versátil para la visualización de datos.
+
+El CA es utilizado habitualmente por los ecólogos, que cuentan las ocurrencias de plantas y animales, y los científicos sociales, que cuentan las respuestas de las personas; también por investigadores de mercado, lingüistas, psicólogos, investigadores biomédicos y arqueólogos, etc..
+
+
+
+INTRODUCCIÓN AL CA
+
+Comencemos por comprender los objetivos del análisis de correspondencias (CA) y cómo trabaja.
+
+El análisis de correspondencias (CA) permite representar gráficamente una tabla de datos en un espacio de menor dimensión a la original. De esta manera podemos visualizar el patrón de asociación (o correspondencia) entre los elementos de la tabla (filas y columnas).
+
+
+Ejemplos de patrones
+
+Por ejemplo, si tenemos los individuos y variables dos grupos claramente diferenficados, solo nos valdría con un eje, sin embargo, Si solo hay tres grupos entonces ya tendrianos que irnos al de 2 ejes.
+
+Otros ejemplo de patrones son locatión effect, que separa los grupos unos de otros, Efecto dispersión, cuando uno de los grupos está maás concentrado en un parte y la otra con mucha dispersión. O puede ser una mezcla de ambas.
+
+
+¿Qué datos utiliza el CA?
+
+- Tabla de valorea no negativos (en escala de razón),
+- Generalmente se aplica a datos de frecuencia (recuento) formados pos variables caterósicas o cualitativas). Tabla de contingencia.
+- Misma escala, o tranfosmación previa de los datos.
+- Sensible a los datos atípicos (outliers) pero no tanto a los 0.
+
+
+Tipos de tablas de datos. 
+
+El CA estudia la relación entre pares de variables cualitativas. Los datos iniciales para un CA suelen estar en forma de tabla de contingencia (cruzada o bidireccional) y suelen ser datos de frecuencia (recuento). La tabla puede venir dada en formato ancho o largo.
+
+- Formato largo (con el nombre de los colores del ojo dentro de una columna y los valores observados en otra)
+
+- Formato ancho, con las variables (colores de ojo) en cada columna y los valores observados dentro de la matriz.
+ 
+
+Específicamente, estudia la diferencia entre los datos dados y cómo sería si las variables fueran independientes, es decir, evalúa la desviación de la independencia. Luego proyectamos estas diferencias en un mapa bidimensional (biplot).
+
+
+¿Qué tipos de CA existen?
+
+- Análisis de correspondencia simple (CA). 2 variables
+ 
+- Análisis de correspondencia multiple (MCA). más de 2 variables 
+ 
+- CA canónigo o restringido (CCA). 2 tablas de datos, una restringe el patrón observado en la otra.
+
+
+
+PREPARACIÓN DE DATOS
+```{r}
+install.packages("ggrepel")
+install.packages("FactoMineR")
+```
+
+```{r}
+library(factoextra)
+library(FactoMineR)
+library(gplots)
+```
+
+En el ejemplo que vamos a seguir se trata de las razones por el cuál una mujer o una pareja pueda dudar de tener hijos.
+
+```{r}
+data("children")
+children
+```
+
+Tenemos varias filas que muestran circunstancias y columnas que muestra situaciones personales.
+
+Lo siguiente será dividir los datos en activos y pasivos.
+- Casos/variables activas: para ajustar modelo
+- Casos/variables pasivos: para predecir con el modelo.
+```{r}
+children.2 <- children[1:14, 1:5]
+children.2
+```
+
+Dejamos fuera las ultimas 4 filas debido a que tienen datos faltantes.Y en cuanto a las columnas, dejamos dentro las variables de estudios y dejamos fuera las variables de edad.
+
+
+Para describir los datos podemos realizar una tabla de proporciones por columnas.
+
+
+
+
+```{r}
+X <- prop.table(as.matrix(children.2), margin = 2)*100 #margin 1 indica filas, margin 2 indica columnas, c(1,2) indica ambas
+X
+```
+
+También podemos realizar lo mismo pero de manera más visual de la siuiente manera.
+```{r}
+as.table(X)
+```
+
+```{r}
+dt <- as.table(as.matrix(x)) #convierte los datos a tabla
+balloonplot(t(dt), xlab="", ylab="", lable=FALSE, show.margins=FALSE) #grafica
+```
+
+
+
+INTERPRETACIÓN DEL CA
+
+Después de la selección y descripción de los datos vamos a ajustar un modelo de análisis de correspondencia.
+
+```{r}
+CA(X, ncp=5, graph=TRUE)
+#"X" conjunto de datos (tabla de contingencia)
+#"ncp" número de dimensiones de la solución (podemos omitirlo)
+# "graph": Si es TRUE (verdadero), se muest
+```
+También row.sup y col.sup para seleccionar variables suplementarias, y también hay que especificar si son cuantitativas, quanti.sup, o cualitativas, quali.sup.
+
+Nuestro ejemplo
+`
+```{r}
+( children.ca <- CA(children.2, graph = F) )#modelol
+```
+Vemos que nos muestra las coordenadas, calidad, contribución, de todas las variable.
+
+Para interpretar del modelo utilizamos las funciones:
+
+- Resumen del modelo: summary()
+ - Prueba de independencia Chi-cuadrado, cuando es menor que alfa entoncesdecimos que existe independencia
+ - Valores propios y % de variabilidad explicada.
+ - filas y columnas: incercia, coordenadas, contribuciñon, calidad.
+
+- Gráfico bidimensionsl: biplot()
+
+- Información guarfada: print()
+
+
+La primera pregunta que podríamos hacernos es, ¿existe un patrón general en la tabla de datos entre filas y columnas?
+
+Prueba de independencia Chi-cuadrado de pearson.
+- Si p<0.05 podemos afirmar que existe una relación significativa.
+```{r}
+summary(children.ca)
+```
+
+En la prueba Chi-cuadrado obtenemos un valor por debajo de 0.05, por lo que si existe una relación significativa entre las razones y el nivel educativo entre los que realizaron el test.
+
+
+La siguiente pregunta sería, ¿Qué número de dimensiones seleccionar? podemos utilizar distintos criterios:
+
+- >70% varianza explicada
+
+En el resumen anterior vemos que en la varianza acumulada llegamos al 78% con la primera y segunda dimensión.
+
+- Punto de quiebre en el gráfico de valores propios
+
+```{r}
+install.packages("broom")
+```
+
+```{r}
+fviz_screeplot(children.ca, addlabels=TRUE) + geom_hline(yintercept = 25, linetype=2)
+```
+
+En nuestro ejemplo nos quedamos con 2 dimensiones, ya que eel punto de quiebre sería en el segundo.
+
+
+- >valor medio: 100*máximo 1/(filas-1) y 1/(columnas-1)
+Esta fórmula significa 100 * el número mayor entre "1/(15-1)" y "1/(5-1)" es decir 1/4>1/14, por lo que:
+
+              corte: 100*1/(5-1)=25
+
+Esta cifra se visualiza en el anterior gráfico, todas las dimensiones por encima de esa linea se escogerían. En este caso sólo sería el primero, pero por motivos didácticos y los otros criterios nos quedaremos con los 2 primeros.
+
+
+
+BIPLOT: CONFIGURACIÓN ESPACIAL DE LOS RESULTADOS
+
+¿Cómo interpretar el biplot?
+
+- Veremos en azul las filas de la matriz y en rojo las columnas.
+- La proximidad entre filas (o entre columnas) probablemente indica similitud.  Perfiles similares se encuentran agrupados, los negativamente correlacionadas se localizan en cuadrantes opuestos.
+- El ángulo nos indica el tipo de asociación. Un ángulo pequeño indica una relación positivo, 90º indica ausencia de relación y un gran ángulo indica una relación negativa.
+- La distancia al origen indica qué tan fuerte es la relación. A mayor distancia respecto al origen del gráfico mayor fuerza de la relación, mayor discriminación.
+
+Existen 2 tipos de biplots:
+
+- Biplot simétrico. Debemos mirar la relación entre filas o entre columnas, pero no entre filas y columnas. Aquí solo se puede observar un patrón.
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+fviz_ca_biplot(children.ca, map="symetric", arrow = c(TRUE,TRUE), repel = TRUE)
+```
+
+Vemos por ejemplo que los que tienen estudios universitarios, sus mayores preocupaciones están relacionadas con causas circunstanciales y económicas, mientras que los que no tienen cualificación, es´tan relacionadas con el desempleo y las finanzas. Estos dos grupos están negativamente correlacionados. Aquí estamos viendo proximidad.
+
+
+- Biplot asimétrico. e.g. rowprincipal = relación entre filas o entre filas y columnas, pero no entre columnas.
+
+```{r}
+fviz_ca_biplot(children.ca, map="rowprincipal", arrow=c(TRUE, TRUE), repel=TRUE)
+```
+
+Aquí nos podemos fijar en los ángulos. Vemos que la no cualificación tiene poco a´ngulo respecto a las finanzas por lo que podemos decir que están correlacionados mientras que finanzas con guerra no tiene relación, y tiene correlación negativa con circunstancias.
+
+Y por otro lado, vemos que la mayor distancia con el origen nos dice que tán fuerte es la relación, por ejemplo vemos que high school tiene una relación muy fuerte con el eje 1 y los estudios universitarios más con el eje 2.
+
+
+Consideraciones finales:
+- El CA muestra relaciones relativas, debemos mirar los datos brutos para completar la interpretación de los datos.
+- Cuanto mayor sea la varianza explicada menor será  la información que perdemos con la reducción de dimensión de los datos.
+- La normalización de los datos condiciona nuestra interpretación del biplot. Ninguna normalización es apropiada para todo.
+
+
+
+CONTRIBUCIÓN Y CALIDAD DE LOS PERFILES
+
+Para destripar los resultados y comprender los patrones que observamos, podemos utilizar 2 estadísticos: la contribución y la calidad. 
+
+Utiliza para cada fila o columna: 
+- La contribución (contrib, %) de los perfiles de filas (o columnas): contribución a la variabilidad de cada componente (o eje). A mayores valores corresponden a una mayor contribución a la definición del eje.
+- La calidad (cos2, [0,1]) de los perfiles de filas (o columnas): determina la proporción de variabilidad representada por cada componente. A mayores valores corresponden a una mejor representación del punto por el eje en cuestión.
+
+Para intentar comprender mejor esto vamos a simplificarlo. 
+
+    punto --contribución--> eje  ;  punto <--calidad-- eje
+
+- ctr %: contribución del punto al eje. A mayor valor, mayor contribución a la definición del eje.
+- cos2 [0,1]: calida de la representación del punto en el mapa. A mayor valor, mejor representado está el punto por el eje en cuestión.
+
+Ten en cuenta que:
+
+- Baja contribución y calidad = no contribuye a la información del biplot y su perfil no se diferencia. El punto no se diferencia del resto.
+- Una alta contribución suele implicar una alta calidad, pero no necesariamente a la inversa. Es decir, un punto puede estar bien representado en una solución particular, pero no contribuir mucho a la varianza explicada total.
+
+
+Para ver todo esto realizamos:
+```{r}
+fviz_contrib(children.ca, choice = "row", axes = 1, top=10)
+```
+
+Entonces aqui vemos las 10 variables por filas de la dimensión 1 con mayor contribución de mayor a menor. Las 5 primeras vemos que está por encima de la lína roja y serían las principales que contribuyen a la dimensión 1.
+
+
+En cuanto a la calidad.
+```{r}
+fviz_cos2(children.ca, choice="row", axes=1:2)
+```
+
+Aqui vemos que los nueve primeros tienen una calidad bastante alta, por lo que están muy bien representados por el eje en cuestión. Aquí no hay linea roja que nos muestre la respuesta mínima.
+
+
+Cuestiones finales a considerar:
+- El CA muestra relatividades. Mirar los datos brutos para interpretarlas.
+- A mayor varianza explicada menor información perdida por la reducción.
+- Proximidad entre filas (o columnas) probablemente indica similitud. Las condiciones de alta % variabilidad explicada,  normalización adecuada y relación de aspecto en el mapa 1:1.
+- Ángulos indican tipo de asociación.
+- Distancia al origen indica la fuerza de asociación (según normalización). A mayor distancia del origen mayor discriminación.
+
+
+
+COMO FACILITAR LA INTERPRETACIÓN DEL BIPLOT EN EL CA.
+
+Interpretar un biplot puede ser confuso cuando tenemos mucha información en el gráfico. Veremos cómo desenredar la madeja para facilitar su intererptación.
+
+- Detecta datos atípicos (outliers).
+Estos pueden dominar la interpretación del CA y se detectan como aquellos con grandes coordenadas y grandes contribuciones al biplot. 
+
+Para detectarlos, según el criterio de Bendixen (2003)
+ - Coordenadas: son el número de desviación típica SD que se aparta del centroide.
+ - Outlier: Si el valor > 1SD
+ 
+```{r}
+CA(children.2)
+```
+
+Vemos que aquí todos se encuentran por debajo de 1. Si hubiera, habría que revisarlos para ver si se trata de una errata para eliminarlos, o sino es así, tratarlos como puntos pasivos/suplementarios en lugar de dejarlos en el modelo..
+
+
+- Filtrar variables
+Cuando tenemos mucha información en el biplot podemos querer observar solo aquellas con mayor contribución/calidad. Por ejemplo vamos a seleccionar aquellas con cos2>=0.8
+
+```{r}
+fviz_ca_row(children.ca, select.row = list(cos2=0.8))
+```
+
+Estas son las variables con mayor calidad.
+
+También podemos hacerlo para seleccionar las 5 mejores contribuciones.
+
+```{r}
+fviz_ca_biplot(children.ca, select.row=list(contrib=5), select.col=list(contrib=5))
+```
+
+Y aquí las tendríamos.
+
+
+- Agrupar variables mediante cluster jerárquico.
+Con los resultados del CA, las distancias o desviaciones de la independencia, podemos realizar un cluster que nos agrupe las categorías de estudio.
+
+```{r}
+children.hcpc <- HCPC(children.ca, cluster.CA = "rows",  nb.clust = 4, graph = FALSE)
+```
+
+```{r}
+fviz_cluster(children.hcpc, show.clust.cent = TRUE)
+```
+
+No es el gráfico que sacó en el vídeo pero los resultados sí, aunque automáticamente nos decía 5 grupos, vamos a dejarlo como 4. Por tanto, tenemos estos grupos, siendo los más dicriminantes el morado y el rojo. 
+
+
+
+PREDECIR NUEVAS OBSERVACIONES/VARIABLES. ELEMENTOS PASIVOS O SUPLEMENTARIOS
+
+Una parte importante del Análisis de Correspondencias es poder predecir nuevas observaciones o variables, graficar conjuntamente esta información con el biplot de nuestro modelo para evaluar su relación con la ordenación.
+
+Solo algunas de las filas y columnas se utilizarán para realizar el análisis de correspondencia (CA). Las coordenadas de las filas / columnas restantes (suplementarias) en el mapa de factores se predecirán después de la CA.
+
+Entonces, las filas y columnas complementarias no se utilizan para la definición de las dimensiones principales. Sus coordenadas se predicen utilizando solo la información proporcionada por la CA realizada en filas / columnas activas.
+
+
+Para especificar filas / columnas adicionales, la función CA()[en FactoMineR ] se puede utilizar de la siguiente manera:
+
+```{r}
+CA(X,  ncp = 5, row.sup = NULL, col.sup = NULL,
+   graph = TRUE)
+```
+
+X : un marco de datos (tabla de contingencia)
+row.sup : un vector numérico que especifica los índices de las filas suplementarias
+col.sup : un vector numérico que especifica los índices de las columnas suplementarias
+ncp : número de dimensiones mantenidas en los resultados finales.
+graph: un valor lógico. Si es VERDADERO, se muestra un gráfico.
+
+```{r}
+children.sup <- CA(children, row.sup = 15:18, col.sup = 6:8, graph = FALSE)
+```
+
+
+En el biplot resultante veremos:
+```{r}
+fviz_ca_biplot(children.sup, repel = TRUE)
+```
+
+Las filas activas están en azul
+Las filas complementarias están en azul oscuro
+Las columnas están en rojo
+Las columnas complementarias están en rojo oscuro
+
+De este modo también podemos ver los patrones con los cuáles se agrupan estas nuevas variables.Por ejemplo, vemos que el confort, el vivir, el mundo, y el desacuerdo en tener hijos, se encuentran cercanos al mundo universitario. Así como tambén vemos las variables de edad, 30, 50 más de 50, por lo que nos aporta más información.
+
+También es posible ocultar filas y columnas suplementarias usando el argumento invisible:
+
+```{r}
+fviz_ca_biplot(children.sup, repel = TRUE,
+               invisible = c("row.sup", "col.sup"))
+```
+
+
+Accedemos a los resultados de predicción (coordenadas y cos2) para las filas y columnas suplementarias con:
+
+```{r}
+children.sup$row.sup #predicciones para filas
+```
+```{r}
+children.sup$col.sup #predicciones para columnas
+```
+
+Las interpretaciones son iguales a las anteriores en cuanto a la contribución y calidad.
+
+
+
+ANÁLISIS DE CORRESPONDENCIA MÚLTIPLE
+
+El MCA es una extensión del CA para tablas con más de 2 variables.
+
+Al igual que en el CA buscamos:
+
+- Grupos de individuos (filas) con perfil similar en sus variables (columnas).
+- Visualizar asociaciones entre las categorías de las variables.
+Para su ajuste utilizamos la función MCA() del paquete FactoMineR:
+
+Como datos vamos a utilizar un conjunto llamado poison, que se trata de una encuesta a niños que sufrieron intoxicación alimentaria. Se les preguntó por sus sintomas y que comieron. 
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+data("poison")
+head(poison,3)
+```
+
+Tenemos variables en columnas y sujetos en filas. Además tenemos variables de edad, momento, sexo y sintomas. Por lo que escogeremos de conjunto activo solamente los sintomas.
+```{r}
+poison.active <- poison[, 5:15]
+```
+
+Realizamos un breve análisis descriptivo para averiguar si hay datos faltantes o muchos ceros.
+```{r}
+summary(poison.active)
+```
+No vemos ningún dato faltante.
+
+```{r}
+plot(poison.active[,1], main=colnames(poison.active)[1], ylab="count", col="steelblue", las=2)
+```
+
+Vemos que hay un poco de desequilibrio entre los dos valores. Podríamos hacer lo mismo para el resto.
+
+
+Para realizar el análisis de correspondencia múltiple utilizamos:
+
+```{r}
+MCA(X, ncp = 5, graph = TRUE)
+```
+
+- “X” conjunto de datos (tabla de contingencia).
+- “ncp” número de dimensiones de la solución (podemos omitirlo).
+- “graph”: Si es TRUE (verdadero), se muestra un gráfico final que genera el MCA.
+- También row.sup y col.sup, quanti.sup -cuantitativas- y quali.sup -cualitativas-.
+
+En nuestro caso
+```{r}
+poison.mca <- MCA(poison.active, graph = FALSE)
+```
+
+
+En la interpretación del modelo vemos.
+```{r}
+summary(poison.mca)
+```
+
+Tenemos dos nuevos estadísticos para interpretar las categorías (variables categóricas:
+
+- v.test. Los valores que cumplen |v.test|>2 son significativamente distintos de 0. Es decir existe una relación para esas categorías.
+- eta2. Es la correlación (al cuadrado) con el eje.
+
+
+¿Con cuántas dimensiones nos quedamos?
+
+- Los valores propios representan la información contenida en los ejes, y es decreciente. Podemos retener aquellos que expliquen >70% de la varianza, o donde se produzca un punto de quiebre en el gráfico.
+```{r}
+fviz_screeplot(poison.mca, addlabels=TRUE) + geom_hline(yintercept = 25, linetype=2)
+```
+
+En ambos casos nos aparecen resultados diferentes, ya que si cogemos hasta el 70% son muchas dimensiones, pero el punto de quiebre aparece en la primera dimensión. Para nuestro ejemplo escogeremos las dos primeras.
+
+¿Cómo interpretar el biplot?
+
+```{r}
+fviz_mca_biplot(poison.mca, repel = TRUE)
+```
+
+- Nuevamente encontramos las filas en azul y las columnas en rojo.
+- Las distancias entre filas (o entre columnas) representan la similitud.
+   - Perfiles similares se encuentran agrupados, los negativamente correlacionadas se localizan en cuadrantes opuestos.
+   - Distancia entre una variable y el orígen: calidad (qué tan bien representado está en el mapa).
+   
+
+- Contribución de los perfiles de filas (o de columnas) al eje. A mayor valor mayor influencia del punto al eje.
+```{r}
+fviz_contrib(poison.mca, choice="var", axes = 1)
+```
+
+Todas las variables que están por encima de la linea son las que más contribuyen a la dimensión 1
+
+- Calidad de la representación del eje en los perfiles de filas (o de columnas). A mayor valor mejor representación del punto en el eje en cuestión.
+```{r}
+fviz_cos2(poison.mca, choice="var", axes=1:2)
+```
+
+Y las primeras de la izquierda son las que mayor calidad tienen.
+
+
+Para mejorar la interpretación del biplot en el caso del MCA puedes:
+
+- Agregar elipses para identificar grupos de individuos
+```{r}
+fviz_mca_ind(poison.mca, label="none", habillage="vomiting")
+```
+
+- Filtrar elementos mediante selección
+```{r}
+fviz_mca_var(poison.mca, delect.var=list(cos2=0.8))
+```
+
+
+
+- Predecir nuevos elementos pasivos o suplementarios-
+
+```{r}
+poison.mca2 <- MCA(poison, ind.sup = 53:55, quanti.sup = 1:2, quali.sup=3:4, graph = FALSE)
+```
+
+```{r}
+#para obtener las predicciones
+poison.mca2$ind.sup
+poison.mca2$quali.sup
+poison.mca2$quanti.sup
+```
+
+Basicamente vamos a tener el mismo criterio que con el biplot del CA, con colores distintos los suplementarios.
+```{r}
+fviz_mca_biplot(poison.mca2, repel=TRUE, ggtheme=theme_minimal())
+```
+
+Vemos, como es normal, que los que se enfermaron si que tuvieron diarrea, fiebre, nauseas.. minetrass que los que no enfermaron no. Y respecto al sexo, vemos que hay una ligera diferencia, parece que le ha podido afectar más a las mujeres, pero como están tan cerca del origen tampoco es muy discriminatorio.

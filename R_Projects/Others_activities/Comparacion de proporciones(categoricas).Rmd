@@ -1,0 +1,258 @@
+---
+title: "comparación de proporciones (categóricas)"
+author: "Daniel Barandiarán"
+date: "17/1/2022"
+output: 
+  html_document: 
+    toc: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+En este documento estudiaremos las variables categóricas y sus pruebas. 
+Para estudiar estas variables analizamos el recuento o porcentaje de cada categoría.
+Para representar o resumir estas frecuencias utilizamos tablas. En particular, si analizamos 2 variables categóricas obtendremos una *tabla cruzada o tabla de contingencia*.
+
+Con la función "CrossTable()" del paquete gmodels podemos obtener una frecuencia absoluta y relativa de cada categoría. Ejemplo:
+```{r}
+library(openintro)
+library(gmodels)
+CrossTable(hsb2$prog)
+```
+Si queremos una tabla de contingencia o cruzada colocamos cada varible como un nuevo argumento.
+```{r}
+CrossTable(hsb2$prog, hsb2$gender)
+```
+
+ENFOQUE TIDYVERSE
+
+Para crear tablas de frecuencia utilizaremos el enfoque tidyverse con las funciones dplyr:
+group_by(): agrupa los datos por cualquier variable/s que nombre.
+summarise(): crea una tabla de resumen basada en las variables que cree dentro de la funcion.
+n(): cuenta el número de puntuacionesz.
+
+Por ejemplo, para contar las frecuencias de las puntuaciones, debemos hacer dos cosas: 
+```{r}
+library(tidyverse)
+hsb2 %>% group_by(prog, gender) %>% summarise(n=n())
+```
+también podemos agrupar por una variable.
+
+
+PRUEBAS HIPOTESIS VARIABLES CATEGORICAS
+
+Resumidamente:
+
+- 1 muestra -> Prueba bondad de ajuste Chi-cuadrado.
+
+- 2 muestras:
+ - Independientes -> Prueba independencia Chi-cuadrado o Prueba exacta de Fisher
+ - Relacionadas -> Prueba de McNemar
+
+- Más de 2 muestras:
+ - Independientes -> Prueba independencia Chi-cuadrado
+ - Relacionadas -> Prueba Q de Cochran
+ 
+
+1 MUESTRA
+
+Con esta prueba lo que buscamos es evaluar la proporción de una población. Comparar la proporción de una variable con un valor conocido (teórico o hipotético). Por ejemplo, ver si coinciden el porcentaje de almendra que hay en el chocolate con el que pone en el envoltorio.
+Hay 3 preguntas que te puedes hacer: la proporción poblacional es distinta a la proporción teórica?; y la media poblacional es menor/mayor que la media teórica?
+H0 p=p0,   H0 p>=/<=p0
+H1 p=/p0   H1 p</>p0
+
+```{r}
+library(openintro)
+library(ggstatsplot)
+ggpiestats(data=hsb2, x=gender, bf.message=F) #para que no muestre la fórmula
+```
+
+Como vemos no hay una significación estadísitca de P-valor, por lo que no podemos rechazar la hipótesis nula, y decimos que no hay diferencia entre la proporción de mujeres y el 50%. También vemos que el tamaño del efecto es muy bajo (0,09) por lo que tiene sentido.
+```{r}
+CrossTable(hsb2$gender)
+```
+También lo podemos visualizar como tabla.
+
+Y además, podemos hacerlo con la función chisq.test() preinstalado en R
+```{r}
+chisq.test(table(hsb2$gender), p=c(1/2, 1/2))
+```
+En este caso las proporciones son del 50% cada una. Si queremos añadir más debemos tener en cuenta que el número de proporciones debe ser igual al número de categorías, y debe sumar 1 (100%). 
+
+
+PRUEBA PARA PROPORCIONES DE 2 MUESTRAS INDEPENDIENTES
+
+Se utiliza para comparar las proporciones de dos grupos de entidades diferentes
+En nuestro ejemplo vamos a comparar la proporción de mujeres entre tipos de instituto.
+H0 Pa = Pb  H1 Pa =/ Pb
+
+Primero vamos a graficar
+```{r}
+library(ggstatsplot)
+ggbarstats(data=hsb2, x=gender, y=schtyp, bf.message = F)
+```
+La prueba de chi cuadrado para la independencia toma el valor 0.05. Vemos que el p-valor es mayor de 0.05 por lo que no podemos rechazar la hipótesis nula. Además vemos que la prueba V de cramer (relacionada con la Chi) es insignificante, por lo que no existe relación alguna entre las variables, aprobando así la indepnedencia de cada una. 
+
+Para hacerlo más formal podemos hacerlo a través de una tabla con CrossTable, ahora que tenemos dos variables podemos indicar el predictor y la respuesta, o directamente una tabla de contingencia, tal que así (pero sustituyendo):
+```{r}
+CrossTable(predictor, #Por defecto usa la prueba Chicuadrado
+           respuesta,
+           Fisher=T, #si usa la prueba exacta de Fisher
+           chisq=T, #si usa la prueba Chicuadrado (X2)
+           expected=T,#si muestra los valores esperados (por azar/casualidad)
+           sresid=T) #si muestra los residuos
+
+CrossTable(tabla_contingencia, #Por defecto usa la prueba Chicuadrado
+           Fisher=T, #si usa la prueba exacta de Fisher
+           chisq=T, #si usa la prueba Chicuadrado (X2)
+           sresid=T) #si muestra los residuos
+```
+
+Si queremos hacerlo más sencillo podemos:
+```{r}
+CrossTable(x=hsb2$gender, y=hsb2$schtyp,
+           prop.r=FALSE, prop.t=FALSE, prop.chisq=FALSE, chisq=TRUE)
+```
+```{r}
+CrossTable(x=hsb2$gender, y=hsb2$schtyp,
+           prop.r=FALSE, prop.t=FALSE, prop.c=FALSE, prop.chisq=FALSE, chisq=TRUE, expected=TRUE) #expected es para ver los valores esperados( debajo del absoluto)
+```
+Los SUPUESTOS que debe cumplir la prueba de Chi cuadrado son:
+- Independencia de los datos: cada persona, elemento o entidad contribuye a una sola celda de la tabal de contingencia.
+- Frecuencias esperadas mayores a 5 (expected): ninguna frecuencia esperada debería estar por debajo de 1. Aunque en tablas más grandes es aceptable tener hasta un 20% con frecuencias esperadas menores a 5. Si pasa esto podemos usar la PRUEBA EXACTA DE FISHER (sobre todo en muestras/tablas(2x2) pequeñas)
+```{r}
+CrossTable(x=hsb2$gender, y=hsb2$schtyp,
+           prop.r=FALSE, prop.t=FALSE, prop.chisq=FALSE, digits=2, fisher=TRUE)
+```
+odds ratio o OR (razon de probabilidades) es una medida para el tamaño del efecto.
+Para calcularlo hay que coger los cuadrantes de nuestra tabla 2x2:
+Primer cuadrante A (mujeres y publico), segundo cuadrante B (mujeres y privado), tercer cuadrante C (hombres y publicos), y cuarto D (hombres y privado).
+Entonces se calcularía así -> OR =(a/b)/(c/d)
+Y significaría la Probabilidad de ir a un instituto público siendo mujer es 0,92 veces mayor que la de un hombre, o sea, casi igual. Un valor cercano a 1 sería que  la probabilidad o proporcion es muy similar entre hombres y mujeres, como es nuestro caso.
+Odds serái como el cociente entre n d eventos y n de no eventos. Se puede pasar de probabilidad a Odds y viceversa así: (p/(1-p)) y (odds/odds+1)
+
+
+PRUEBA DE PROPORCIÓN PARA MÁS DE DOS MUESTRAS INDEPENDIENTES
+
+Se usa para comparar las proporciones de más de dos grupos de entidades diferentes.
+Por ejemplo,comparar la proporción de escuelas (públicas o privadas) en cada tipo de programa (general, vocacional, o académico).
+PREGUNTA: la proporción p no es la misma para todos los grupos (al menos uno distinto)?
+H0 -> P1=P2=...=Pk
+H1 -> Pi=/Pj (distinto para algún i y j)
+```{r}
+library(ggstatsplot)
+ggbarstats(data=hsb2, x=schtyp, y=prog, bf.message=F)
+```
+
+según el estadístico p-valor de la prueba Chicuadrado, rechazamos la hipótesis nula, y por tanto existe diferencia en alguno de los grupos (rechazamos la independencia de las variables de estudio). En concreto podemos afirmarlo con los grupos académico y vocacional. Aunque el efecto sea relativamente bajo.Los asterisco que aparecen encima de cada barra significa que existe una diferencia significativa entre los dos grupos de cada barra, es decir que existe diferencias entre la proporción de escuelas públicas y privadas para el grupo de general, por ejemplo. 
+Ahora veamos en tabla.
+```{r}
+library(gmodels)
+CrossTable(hsb2$schtyp, hsb2$prog, 
+           fisher = TRUE,
+           chisq=TRUE,
+           expected = TRUE,
+           sresid = TRUE)
+```
+Vemos que no existe independencia entre variables (p=0,009, o exacto fisher, p=0,007). También vemos que no existen números esperados menores que 5, por lo que tampoco necesitábamos la prueba de fisher.
+Ahora veremos con exactitud entre cuáles grupos existe dicha diferencia.
+
+```{r}
+#plantilla
+pairwise.prop.test(xtab,    #tabla de contingencia
+                   p.adjust.method = "holm",...) #ajuste del p-valor
+```
+
+```{r warning=FALSE}
+library(rstatix)
+a<-pairwise_prop_test(table(hsb2$schtyp, hsb2$prog))
+a
+```
+Esta es la prueba post hoc (a posteriori) que ya que sabemos que no hay independencia, hay que saber entre cuales variables hay diferencias. No sé por qué da aviso, pero se muestra como dato (a), y nos muestra que existen diferencias de institutos públicos entre los grupo académico y vocacional. Como se había comentado en el gráfico.
+
+Cuando es una tabla 2x2 es facil ver la relación con solo ver los porcenatjes o recuentos de de celdas. Para tablas más grandes podemos mirar los valores del residual estandarizado, que nos diran aquellas que contribuyen significativamente a la estadística general de chi-cuadrado. Se analiza de la siguiente manera:
+- Si el valor se encuentra fuera de +-1.96 entonces es significativo en p<0.05
+- Si está fuera de +-2.58 entonces es significativo en p<0.01
+- Si está fuera de +-3.29 entonces es significativo en p<0.001
+
+Si tenemos más de dos columnas, no podemos usar la función pairwise.prop.test. Así que usaríamos la función fisher.multcomp() de la librería RVAideMemoire.
+
+PRUEBA PARA PROPORCIONES DE 2 MUESTRAS RELACIONADAS
+
+Veamos ahora cómo comparar las proporciones de dos muestras relacionadas, es decir, que proceden de las mismas entidades.
+Por ejemplo, comparar la aprobación del desempeño del presidente en dos encuestas con un mes de diferencia.
+Las preguntas serían: ¿La proporción en 1 (P1) es distinta/mayor/menor/ que la proporción en 2 (P2)?
+H0 P1 =/>=/<= P2 
+H1 P1 =//>/< P2
+
+```{r}
+performance <- matrix(c(794,86,150,570),
+                      nrow = 2,
+                      dimnames = list("Survey1st" = c("approve", "disapprove"),
+                                      "Survey2nd" = c("approve", "disapprove")))
+performance
+```
+```{r}
+as.data.frame(as.table(performance))
+```
+
+Podemos obtener un gráfico como hasta ahora lo hemos hecho.
+```{r}
+library(ggstatsplot)
+ggbarstats(data=dataframe, x=Survey1st, y=Survey2nd, counts = Freq, paired=TRUE, bf.message = FALSE) #paired es para decir que son relacionadas 
+```
+Los resultados nos muestra un p valor para la prueba de McNemar <0.05, por lo que debemos rechazar la hipótesis nula, afirmando así que existe diferencias entre las muestras, aunque el efecto es bajo.
+Ahora veámoslo como tabla, al igual que hemos hecho anteriormente.
+```{r}
+library(gmodels)
+CrossTable(performance,prop.r=FALSE, prop.t = FALSE, prop.chisq = FALSE, mcnemar = TRUE)
+```
+Vemos igualmente a través de las pruebas de McNemar que el  valor es significativos, es decir las diferencias.
+
+
+PRUEBA DE PROPORCIÓN DE MÁS DE DOS MUESTRAS RELACIONADAS
+
+Se usa para comparar las proporciones de más de dos muestras relacionadas, es decir, que proceden de las mismas entidades. Para ello se utiliza la prueba de  Q de Cochran.
+Por ejemplo, comparar la intención de compra dependiendo de la información recibida.
+La pregunta sería, ¿la proporción de P no es la misma para todas las muestras (al menos alguna es distinta)?
+H0 P1=P2=...=Pk
+H1 Pi=/Pj 
+En el ejemplo se les preguntaría a un grupo de 10 personas si comprarían alguna marca sin ningún tipo de información, despues se les muestra un anuncio y se les pregunta si comprarían, y finalmente se les mostraría unos comentarios de internet y se les volvería a preguntar (3 muestras). Entonces sería así:
+```{r}
+library(rmarkdown)
+library(knitr)
+```
+
+```{r}
+Respuesta <- c(1,0,1,0,0,1,0,1,0,0,1,1,0,0,1,1,1,1,0,0,1,0,1,1,0,1,1,0,1,1)
+Sujeto <- factor(c(1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6,7,7,7,8,8,8,9,9,9,10,10,10))
+Canal <- factor(rep(c("inicial", "anuncio", "internet"), 10))
+datos <- data.frame(Sujeto, Canal, Respuesta)
+head(datos)
+```
+Empezamos por graficar.
+```{r}
+levels(datos$Canal) <- c("inicial", "anuncio", "internet")
+
+library(ggstatsplot)
+ggbarstats(data=datos, x=Respuesta, y=Canal,
+           paired=TRUE, bf.message = FALSE)
+```
+La diferencia significativa muestra que solo en el valor internet es significativa la diferencia, pero no sabemos respecto a qué. 
+Vamos a realizar la prueba Q de cochran para averiguarlo bien. 
+```{r}
+PLANTILLA
+library(rstatix)
+cochran_qtest(data, formula)
+```
+```{r}
+cochran_qtest(datos, Respuesta ~ Canal|Sujeto)
+```
+Vemos que nos da el valor 0.01, por lo que es significativo, y rechazamos la hipótesis nula. ahora hay que averiguar cuando pasó (aunque ya lo sabemos), utilizando las pruebas de comparaciones múltiples post hoc con la prueba McNemar
+
+```{r}
+library(rstatix)
+pairwise_mcnemar_test(datos, Respuesta~Canal|Sujeto)
+```
+Mediante esta prueba vemos que siginifcativo es en cada tramo. Y vemos que en el tramo anuncio-internet es el más significativo (como ya veniamos diciendo). 
+

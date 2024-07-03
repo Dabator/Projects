@@ -1,0 +1,590 @@
+---
+title: "Regresion logistica"
+author: "Daniel Barandiarán"
+date: "13/3/2022"
+output: html_document
+---
+
+Vamos a ver ejemplo de regresión logística con datos de titanic. Primero vamos a explorar los datos:
+
+```{r}
+library(PASWR)
+data(titanic3)
+summary(titanic3)
+```
+¿quién tuvo más probabilidades de vivir?
+
+Cuando tienes un predictor categórico podemos calcular una tabla de contingencia y realizar un gráfico de barras, mientras que si tienes un predictor continuo resumiremos la media y la variacion de los datos y realizaremos un diagrama de cajas. Nuestro caso es el primero:
+```{r}
+library(summarytools)
+ctable(titanic3$pclass, as.factor(titanic3$survived))
+```
+```{r}
+library(tidyverse)
+```
+
+```{r}
+percentData <- titanic3 %>% group_by(pclass) %>% count(survived) %>% mutate(ratio=scales::percent(n/sum(n)))
+ggplot(titanic3, aes(x=factor(pclass), fill=factor(survived))) + 
+         geom_bar(position = "fill") + 
+         geom_text(data=percentData, aes(y=n, label=ratio),
+                   position = position_fill(vjust=0.5))
+```
+
+En un predictor numérico analizamos la media y desviaciones.
+
+```{r}
+library(tidyverse)
+titanic3 %>% 
+  group_by(survived) %>%
+  filter(!is.na(age)) %>%
+  summarise(mean= mean(age),
+            sd= sd(age),
+            n=n())
+```
+
+```{r}
+ggplot(titanic3, aes(x=factor(survived), y=age, fill=as.factor(survived))) + geom_boxplot()
+```
+
+Si tenemos dos predictores, uno numérico y otro categórico podemos usar lo mismo de antes pero agrupando.
+```{r}
+titanic3 %>% group_by(survived, sex) %>%
+  filter(!is.na(age)) %>% 
+  summarise(mean=mean(age),
+            sd=sd(age))
+```
+
+```{r}
+ggplot(titanic3, aes(x=factor(survived), y=age, fill=as.factor(sex))) + geom_boxplot()
+```
+
+
+SUBCONJUNTOS TRAIN Y TEST
+
+Antes de ajustar el modelo de regresión logística vamos a crear dos subconjuntos de datos, uno de entrenamiento (para ajustar el modelo) y otro de prueba (para evaluar el modelo).
+
+```{r}
+library(caret)
+
+titanic <- titanic3 %>% 
+  filter(age >= 0 | !is.na(age))
+
+index <- createDataPartition(y=titanic$survived, p=0.75, list=FALSE)
+set.seed(100)
+train <- titanic3[index,]
+test <- titanic3[-index,]
+set.seed(100)
+```
+```{r}
+#dimensiones
+dim(train)
+```
+```{r}
+dim(test)
+```
+785 y 524 observaciones de 14 variables.
+
+AJUSTE DEL MODELO
+
+Imagina que queremos predecir la supervivvencia del viajero según la clase en la que viajaba. Este en un modelo de regresión logísitca simple porque solo utilizamos un predictor. Usualmente se trabaja en formato largo. Pero mostramos todas las opciones:
+
+```{r}
+#formato largo
+model <- glm(survived ~ pclass, family = binomial, data = train)
+
+#formato ancho 1
+model <- glm(survived ~ pclass, weights = Freq, family = binomial, data = train) 
+
+#formato ancho 2
+model <- glm(cbind(surv1, surv0) ~ pclass, family = binomial, data = train) 
+#Para observar los resultados escribimos:
+summary(model)
+```
+
+Interpretación de los coeficientes del modelo con un predictor:
+b0 para cuando x vale 0
+b1 la pendiente de la regresión (x -> x+1)
+
+```{r}
+fit.age <- glm(survived~age, data=train, family=binomial)
+coef(fit.age)
+```
+
+El modelo ajustado es:
+log(pi/(1-pi)) = 0.209 - 0.015*age
+
+```{r}
+exp(coef(fit.age))
+```
+Interpretación b1: por cada año que aumenta la edad del pasajero el odds (ventaja) de sobrevivir es de 0.98 veces menor, si aumenta el 10 años el odds sería 0.98^10 = 0.90 veces menor 
+
+```{r}
+exp(confint(fit.age)) #para el IC
+```
+
+En resumen:
+La interpretación del coef. b1 para un predictor continuo es el cambio estimado en el log-odds del evento (respuesta) por cada unidad de aumento del predictor.
+Es más sencillo interpretar el odds-ratio: OR=exp(b1), determina si el aumento de una unidad en el predictor hace que el evento sea más o menos probable.:
+- si b1>0, OR = exp(b1)>1, el evento es más probable al aumentar X.
+- si b1<0, OR = exp(b1)<1, el evento es menos probable al aumentar X.
+- si b1=0, OR = exp(b1)>=1, el evento es igual de probable al aumentar X. No hay diferencias entre las posibilidades de un evento u otro.
+
+
+Podemos representar estos resultados mediante los efectos o la probabilidad de que sobreviva un pasajero según la edad:
+```{r}
+library(effects)
+allEffects(fit.age)
+```
+La probabilidad de sobrevivir para un pasajero de 20 años es del 40%, mientras que un pasajero de 80 años es de 26%.
+
+También se puede graficar estos efectos.
+```{r}
+plot(allEffects(fit.age))
+```
+La probabilidad de supervivencia disminuye xcon la edad.
+Otra forma de hacer esto sería:
+```{r}
+library(sjPlot)
+plot_model(fit.age, type="eff", show.data = TRUE)
+```
+Y por último:
+```{r}
+library(visreg)
+visreg(fit.age, scale="response")
+```
+
+ejercicio
+```{r}
+(p20 <- predict(fit.age, newdata=data.frame(age=20), type="response"))
+```
+
+Interpretar coeficientes para un predictor categórico binario.
+
+Tiene dos categorías X=0 (o nivel de referencia) y X=1
+Nivel de referencia: nivel con valor más bajo o primer nivel en orden alfabético. Se pude utilizar la función relevel() para cambiarlo.
+- Cuando X=0, log(odds|X=0) = b0, corresponde al log-odds del nivel de referencia.
+- Cuando X=1, log(odds|X=1) = b0 + b1, corresponde al log-odds del coeficiente.
+
+Para evaluar la ventaja de posibilidades del nivel 1 respecto al nivel de referencia 0, calculamos la diferencia entre log-odds:
+    log(odds1)-log(odds0) = log(odds1/odds0) = log(OR)=b1
+Despejando: OR=exp(b1)
+
+ejemplo.
+```{r}
+fit.sex <- glm(survived~sex, data=train, family=binomial)
+coef(fit.sex)
+```
+modelo ajustado es: log(pi/1-pi) = 1.30-2.60*male
+
+```{r}
+exp(coef(fit.sex))
+```
+interpretación b1: para los hombres el odds de sobrevivir es 0.074 veces menor que el de las mujeres.
+
+En resumen:
+La interpretación de los coeficientes estimados para predictores categóricos es relativa al nivel de referencia del predictor.
+Es más sencillo interpretar el odds-ratio: OR=exp(b1):
+- si b1>0, OR = exp(b1)>1, el evento es más probable en ese nivel del predictor(hombres) que en el nivel de referencia(mujeres)
+- si b1<0, OR = exp(b1)<1, el evento es menos probable en ese nivel del predictor(hombres) que en el nivel de referencia(mujeres)
+- si b1=0, OR = exp(b1)>=1, el evento es igual de probable en ese nivel del predictor que en el nivel de referencia..
+
+Para evaluar la PROBABILIDAD
+```{r}
+library(effects)
+allEffects(fit.sex)
+```
+Lo podemos tambien graficar
+```{r}
+plot(allEffects(fit.sex))
+```
+
+MÁS DE UN PREDICTOR
+
+Cuando utilizamos más de un predictor, nuestro objetivo es ajustar el efecto de cada predictor en el modelo controlando los otros predictores, de tal manera que cada coeficiente beta del modelo proporciona una estimación del efecto de un término ajustando por los efectos de otros términos en el modelo.   
+
+¿Qué significa controlar/ajustar por otros predictores? 
+
+Comparar el efecto de un predictor sobre la respuesta, para un mismo valor (media o nivel) del otro predictor.
+
+Un factor de confusión es un predictor que está asociado tanto a la respuesta como al predictor principal (o factor de interés). Cuando estas dos asociaciones están presentes la relación entre la respuesta y el factor de interés se confunden.
+
+¿Cómo detectarlo? observamos un cambio sustancial en el valor del coeficiente del factor de interés cuando se introduce el factor de confusión.
+
+Vamos a evaluar la supervivencia en base a dos predictores, el sexo (predictor de estudio) y la edad(factor de confusión). Por simplificar vamos a suponer que no hay interacción.
+
+```{r}
+fit.sexage <- glm(survived ~ sex + age, data=train, family=binomial)
+coef(fit.sexage)
+```
+Por lo tanto obtenemos que : log(pi/1-pi) = 1.70 - 2.67*male - 0.01*age
+
+El modelo ajustado solo con sexo era: log(pi/1-pi) = 1.30-2.60*male
+
+Deberíamos ver una diferencia entre los coeficientes b1 para que se trate de un factor de confusión, en este caso diríamos que no.
+
+Ahora calculamos los OR para interpretar los coeficientes.
+```{r}
+exp(coef(fit.sexage))
+```
+Este ratio de 0.068, es el OR que esperaríamos encontrar para los hombres manteniéndose la edad igual tanto si fuese hombre como mujer.
+
+Podemos graficar el probabilidad de sobrevivir tanto en sexo como por edad.
+```{r}
+plot(allEffects(fit.sexage))
+```
+
+Hay dos gráficos porque son términos independientes, no hay interacción.
+
+
+Con INTERACCIÓN
+
+Uno de los aspectos más interesantes de incluir varios predictores en nuestro modelo es evaluar sus posibles interacciones. Una interacción implica que existe un efecto combinado de los predictores sobre la respuesta, lo cual puede atenuar o magnificar la respuesta individual. Veamos cómo detectar si existe una interacción y cómo interpretarla.
+
+Objetivo: Evaluar el efecto combinado o conjunto de los predictores sobre la respuesta.
+
+Un término de interacción entre dos predictores ocurre cuando la relación entre un factor y la respuesta NO es la misma para cada nivel del otro factor.
+
+¿Cómo detectar la interacción? Cuando la interacción está presente obtenemos líneas con diferentes pendiente, mientras que si no hay interacción encontramos líneas paralelas.
+
+```{r}
+fit.sexbyage <- glm(survived ~ sex * age, data=train, family=binomial)
+coef(fit.sexbyage)
+```
+Por lo tanto obtenemos que : log(pi/1-pi) = 0.95 - 1.42*male + 0.015*age - 0.04male:age
+
+```{r}
+exp(coef(fit.sexbyage))
+```
+Como es más dificil interpretar los OR con un factor de interacción vamos a verlo graficado.
+
+```{r}
+plot(allEffects(fit.sexbyage))
+```
+
+Vemos que hay un comportamiento distinto. A mayor edad en mujeres mayor probabilidad de sobrevivir, y al contrario para los hombres. Por tanto si que hay un término de interaccióp aquí.
+
+
+Veamos ahora cómo SELECCIONAR los predictores y cómo EVALUAR la importancia relativa de cada uno en un modelo de regresión logística.
+
+Para seleccionar los predictores del modelo puedes: 
+
+selección manual comparando modelos mediante la función anova() o AIC().
+selección automática por pasos con la función step() (según valores de AIC).
+Para evaluar la importancia de los predictores puedes:
+
+utilizar la función varImp(). 
+realizar un análisis de dominancia con la función dominanceAnalysis().
+
+Vamos a realizar la comparación secuencial de los modelos (anidados) con la función ANOVA, que determina aque que tenga una desviación residual más baja.
+```{r}
+anova(fit.sexbyage, test="Chisq")
+```
+Nos quedamos con la interacción ya que es significativa.
+
+Tambien lo podemos hacer con el Criterio de Información de Akaike (AIC), y elegir el modelo con el AIC más bajo.
+```{r}
+AIC(fit.age, fit.sex, fit.sexage, fit.sexbyage)
+```
+Vemos de nuevo que el mejor modelo es con interacción.
+
+Ahora veamos métodos de selección automática.
+Método stepwise consiste en la selección de predictores por introducción o exclusión del moodelo de forma secuencial, hacia delante o hacia atrás. Utiliza el AIC.
+```{r}
+fit.all <- glm(survived ~ .^2, data=train[,c("survived", "pclass", "sex", "age")],
+               family=binomial)
+(fit.step <- step(fit.all, trace=0))
+```
+Vemos que el modelo que escoge es con pclass, sex, age e interacción entre sex y pclass.
+
+```{r}
+summary(fit.step)
+```
+Con el resumen del modelo obtenemos los coeficientes.
+
+Ahora lo que puede ser importante es observar la importancia relativa de los predictores.
+Lo primero es entrenar el modelo con la función train de caret.Y luego evaluar la importancia de cada predictor.
+```{r}
+fit.caret <- train(survived ~ pclass+sex+age+pclass:sex, data=train, method="glm", na.action=na.omit)
+```
+```{r}
+(imp <- varImp(fit.caret, scale=FALSE)) 
+plot(imp)
+```
+Vemos en orden ela importancia entre los predictores.
+
+También podemos ver la importancia de los predictores con el ANálisis de dominancia de los predictores. Un seudo R2 por cada predictor.
+
+```{r}
+library(dominanceanalysis)
+res <- dominanceAnalysis(fit.step)
+```
+```{r}
+plot(res, which.graph = "conditional",
+     fit.function = "r2.m")
+plot(res, which.graph = "general", 
+     fit.function = "r2.m")
+```
+Antes era importancia por niveles y ahora es por predictor en comparación a los niveles de los otros predictores.
+
+
+INFERENCIA EN LA REGRESIÓN LOGÍSTICA
+
+Veremos los errores estándar y las pruebas de hipótesis para los coeficientes de la regresión logística, y cómo interpretar el resto de resultados del resumen del modelo (la devianza, AIC), veremos cómo calcular un valor de pseudo-R2, la prueba global de bondad de ajuste de Hosmer-Lemeshow y los análisis post hoc de los modelos.
+
+El error estándar de un coeficiente estima la variabilidad de sus estimaciones.
+
+Las pruebas de hipótesis para los coeficientes evalúan si existe asociación entre el término y la respuesta.
+- Predictor continuo: evalúa si su coeficiente es igual a 0.
+- Predictor categórico: evalúa si la probabilidad para ese nivel es igual de la probabilidad para el nivel de referencia (intercepto). 
+
+Los parámetros del modelo (beta) se estiman maximizando la función de verosimilitud, las iteraciones que aparecen son debidas a que es necesario resolver las ecuaciones de forma iterativa, en este caso han sido necesarias 4 iteraciones para estimar los parámetros.
+
+La devianza (o desviación) es una medida de mal ajuste: mide la diferencia entre los valores ajustados y los observados.
+- Números más altos indican un peor ajuste.
+- Null deviance: qué tan mal se predice la respuesta con un modelo que incluye solo el intercepto. (gran media).
+- Residual deviance: qué tan mal se predice la respuesta con el modelo que estamos evaluando (con los predictores).
+
+El AIC se basa en la devianza pero penaliza para modelos más complejos (como el R2 ajustado).
+- El número en sí no es interpretable, evalúa la calidad de su modelo mediante la comparación de modelos relacionados, comparando valores.
+- Selecciona el modelo con AIC más pequeño.
+- Evita incluir predictores irrelevantes, favorece modelos más parsimoniosos.
+
+El R2 de Tjur es un índice "absoluto" de bondad de ajuste que varía de 0 a 1(%) y se puede utilizar para evaluar el rendimiento del modelo. no mide el porcentaje de “varianza explicada”,(como hace el R2) ya que este concepto no se aplica al GLM, pero tiene propiedades similares (rango, sensibilidad e interpretación).
+```{r}
+library(performance)
+fit.pclass <- glm(survived~pclass, data=train, family=binomial)
+r2(fit.pclass)
+```
+
+También podemos utilizar la Prueba Global de Hosmer-Lemeshow para evaluar el ajuste global de nuestro modelo.
+Donde H0: el modelo se ajusta adecuadamente a los datos.
+```{r}
+library(ResourceSelection)
+data <- na.omit(fit.sexbyage$data[,c("survived", "sex", "age")])
+hoslem.test(x=data$survived,
+            y=fitted(fit.sexbyage))
+```
+Nuestro modelo parece encajar bien porque tenemos una diferencia significativa entre el modelo y los datos observados. (p > 0.05).
+
+Cuando existe una interacción significativa entre predictores, podemos utilizar pruebas de hipótesis post hoc para comparar pares de niveles con una corrección del p-valor para evitar errores.
+
+```{r}
+library(emmeans)
+fit.sexbyclass <- glm(survived ~ sex*pclass, data=train, family = binomial)
+res <- emmeans(fit.sexbyclass, ~ sex*pclass)
+#pairs(res) #todas las combinaciones
+contrast(res, "revpairwise", by="sex", adjust="bonferroni") #por sexo
+```
+Se puede graficar con esta otra función.
+```{r}
+emmip(fit.sexbyclass, sex~pclass, CIs=TRUE, plotit = T)
+```
+
+
+El siguiente paso es DIAGNOSTICAR.
+
+La regresión logística tiene ciertos supuestos: 
+
+-> Los residuos siguen una distribución binomial.
+- Ausencia de valores influyentes.
+
+-> La relación lineal entre el logit de la probabilidad y los predictores. 
+- Para una sola x: grafica logit(p) vs x.
+- Para multiples x: grafica los residuos de Pearson vs cada x.
+- Utiliza el suavizados (GAM) para evaluar la linealidad.
+
+-> Ausencia de sobre-ajuste.
+-> Ausencia de sub- o sobre-dispersión
+-> Ausencia de multicolinealidad entre los predictores
+
+Empezamos con el primero. En el análisis de RESIDUOS se obtiene los mismo gráficos. Los RESIDUOS DE DEVIANCE pueden utilizarse para evaluar el GLM como un LM normal.
+```{r}
+plot(fit.step, 1:4)
+```
+En el último vemos si hay valores influyentes.
+También obtenemos gráficos interesantes con esta función.
+```{r}
+library(ggResidpanel)
+resid_panel(fit.step)
+```
+
+Incluso la función:
+```{r}
+library(performance)
+library(see)
+check_model(fit.sexbyage)
+```
+
+Tenemos que tener especialmente cuidado con los outliers. Valores inusualmente altos o bajos de las variables independientes (high leverage points) o de la variable respuesta (ouitliers) pueden ser puntos influyentes que distorsionen la influencia de los parámetros.
+```{r}
+head(influence.measures(fit.sexbyage)$infmat, n=3)
+```
+```{r}
+head(influence.measures(fit.sexbyage)$is.inf,n=3)
+```
+Vemos la observación 2 que puede ser un valor atípico. 
+
+
+Vamos con los demás supuestos, RELACION LINEAL ENTRE LOGIT DE LA PROB Y PREDICTORES
+
+```{r}
+library(mgcv)
+fit.gam <- gam(survived ~ age + sex + pclass + s(age, by=sex), data=train,
+               family=binomial, method="REML")
+par(mfrow=c(1,2))
+plot(fit.gam)
+```
+
+Vemos linealidad en las mujeres pero en los hombres no tanto. Podemos decir que cumple con el supuesto.
+
+AUSENCIA DE SOBRE-AJUSTE
+Si el modelo incluye el mismo número de variables que de observaciones, obtendremos un ajuste perfecto (sobre-ajuste) entre nuestros datos y el modelo, pero no funcionará bien con otros conjuntos de datos. Para evitar un ajuste excesivo, generalmento necesitamos al menos 10 observaciones por cada coeficiente/predictor.
+
+AUSENCIA DE SUB- Y SOBRE-DISPERSIÓN
+La varianza (n*p*(1-p)) de una distribución binomial siempre es menor que la media (que es n*p).
+En algunos casos los individuos con el mismo patrón de predictores están positivamente o negativamente correlacionados, lo que puede resultar en que la varianza sea mayor o menor que lo esperado, respectivamente. A esto se llama sobre o sub dispersión.
+Cuando esto ocurre los errores estándar deben ser corregidos. Podríamos utilizar la familia quasibinomial que estima un parámetro de escala a partir de los datos.
+
+Para evaluar si hay un problema de dispersión podemos realizar una prueba que lo que hace es simular los residuos, y con la función testDispersion lo que hace es evaluar si efectivamente se comportan distinto de lo esperado.
+```{r}
+library(DHARMa)
+simres <- simulateResiduals(fit.step, refit = TRUE)
+testDispersion(simres, plot=FALSE)
+```
+Como nuestro P-valor no es significativo, no podríamos rechazar la hipótesis nula que indica que no hay dispersion. 
+La estimación media no cambia después de dar cuenta de la sobre-dispersión, pero los errores estándar sí.
+
+MULTICOLINEALIDAD
+
+Para este caso podemos usar la función vif
+```{r}
+library(car)
+vif(fit.caret$finalModel)
+```
+Hay algunos autores que dicen que si es mayor de 7 mal, pero generalmente es 10. Si existe uno de los predictores con valor mayor a 10 habría que eliminar algún predictor, ya que estaríamos dicienmdo que hay información redundante y que provoca ruido.
+
+POR TANTO
+
+SUPUESTO DE LINEALIDAD
+La linealidad entre el valor esperado de la respuesta Y transformada (para R.Poisson es el log) y los predictores  X es un componente básico de los modelos lineales generalizados. Si esta suposición falla, se sospecha que todas las conclusiones que podríamos extraer del análisis son erróneas. Por tanto, es una suposición clave.
+
+¿Cómo evaluarlo?
+Para evaluarlo utilizamos el gráfico de los residuos vs los valores ajustados. Bajo linealidad, esperamos que no haya tendencia en los residuos además de los patrones inherentes a la naturaleza discreta de la respuesta.
+
+¿Qué hacer cuando se incumple el supuesto de linealidad?
+Podríasmos utilizar una transformación no lineal adecuada para los predictores problemáticos o añadir términos de interacción
+
+SUPUESTO DE DISTRIBUCIÓN DE LA RESPUESTA
+Se asume que la desviación de los residuos (deviance residuals) sigue una distribución Normal aproximada (asintóticamente). El cumplimiento de este supuesto dependerá de la distribución de la respuesta, pero también del tamaño de la muestra y de la distribución de los predictores.
+
+¿Cómo evaluarlo?
+Para comprobar si se cumple este supuesto observamos el gráfico QQ de los residuos estandarizados, los cuales deben seguir una distribución N(0,1). Bajo la distribución correcta de la respuesta, esperamos que los puntos se alineen con la línea diagonal. Es habitual tener pequeñas desviaciones de la diagonal en los extremos, incluso en condiciones de normalidad, aunque estas desviaciones son más evidentes si el dato no son normales.
+
+¿Qué hacer cuando se incumple el supuesto de distribución?
+Podemos necesitar ajustar modelos más flexibles (y más complejos) que veremos más adelante en la lección.
+
+
+SUPUESTO DE INDEPENDENCIA
+Asumimos que las observaciones que hemos tomado son independientes. Esto depende del diseño por el cual se han tomar los datos, si los datos tienen una componente temporal o espacial podrían contener problemas de autocorrelación.
+
+¿Cómo evaluarlo?
+Podemos analizar la autocorrelación de los residuos graficando los residuos en función de su índice de observación. 
+Si las observaciones son independientes no deberíamos obtener ningún patrón (figura 5).
+
+¿Qué hacer cuando se incumple el supuesto de independencia?
+Al igual que en el modelo lineal, poco se puede hacer si no hay independencia en las observaciones una vez recopilados. Si hay dependencia en serie (temporal), una diferenciación de la respuesta (e.g. Y[t+1]-Y[t]) puede conducir a observaciones independientes. Si la dependencia es de otro tipo deberás utilizar otro tipo de modelos, temporales o espaciales.
+
+
+SUPUESTO DE AUSENCIA DE MULTICOLINEALIDAD
+La multicolinealidad también puede estar presente en modelos lineales generalizados. A pesar del efecto no lineal de los predictores sobre la respuesta, los predictores se combinan linealmente. Debido a esto, si dos o más predictores están altamente correlacionados entre ellos, el ajuste del modelo se verá comprometido ya que el efecto lineal individual de cada predictor será difícil de separar del resto de predictores correlacionados.
+
+¿Cómo detectar problemas de multicolinealidad?
+Una forma útil de detectar la multicolinealidad es inspeccionar el VIF de cada coeficiente. La situación es exactamente la misma que en la regresión lineal, ya que VIF solo analiza las relaciones lineales de los predictores:
+
+VIF cercano a 1: ausencia de multicolinealidad.
+VIF mayor de 5 o 10: cantidad problemática de multicolinealidad . Se aconseja eliminar el predictor con mayor VIF.
+
+¿Qué hacer cuando tenemos problemas de multicolinealidad?
+Puedes realizar un análisis de componentes principales (PCA) para los predictores e incluir en el modelo GLM los componentes que obtengas como nuevos predicctores no correlacionados.
+
+
+
+
+PREDICCIÓN EN REGRESIÓN LOGÍSITCA
+
+El objetivo final de la regresión logística es clasificar las predicciones del modelo de regresión logística para predecir la respuesta binaria. Veamos cómo lograrlo y cómo evaluar la precisión del modelo en dichas predicciones.
+En la regresión logísiticano nos devuleve un valor en la predicción, sino una probabilidad de que obtengamos ese valor a través de un umbral.
+
+Procedimiento:
+1. Predecir las ProbabilidadeS de pertenencia a la clase basadas en las observaciones de las variables predictoras.
+2. Asignar las observaciones a la ClasE con la puntuación de probabilidad más alta (es decir, superior a 0.5).
+3. Evaluar la Precisión del modelO al realizar las predicciones.
+
+La función predict() la usamos para modelos GLM, tiene un argumento type:
+- "link" para predicciones ne escala logit.
+- "response" para predicciones de la probabilidad de la clase codificada como "1". 
+Si no le indicamos nuevos datos, estas opciones devuelven, para el primer caso, el predictor lineal o modelo ajustado en escala logit, y en el segundo caso el modelo ajustado en escala de probabilidad.
+
+```{r}
+head(predict(fit.sexbyage, type="link"))
+```
+```{r}
+head(prob <- predict(fit.sexbyage, type="response"))
+```
+
+De otra forma podemos ver en probabilidad de corte:
+Calsificar las observaciones en las dos clases según las predicciones de probabilidad (p) del evento. Si p>0.5 (supuesto), se predice que ocurre el evento.
+```{r}
+pred.classes <- ifelse(prob > 0.5, 1, 0)
+head(pred.classes)
+```
+
+El siguiente paso es evaluar la precisión del modelo. Se mide cmo la proporción de observaciones que se han clasificado correctamente.
+
+```{r}
+mean(pred.classes == test$survived)
+```
+Por supuesto, el error de clasificación , se define como la proporción de observaciones que se han clasificado erróneamente.
+
+Hay otras métricas para evaluar el desempeño del modelo (medidas de bondad de ajuste)
+Tabla o matriz de confusión para evaluar la sensibilidad, especifidad, valor negativo predicho, valor negativo predicho y la precisión. Todos ellos calculados a partir de verdadero positivo(TP), falso negativo(FN) (error tipo II), falso positivo(FP) (error tipo I), y verdadero negativo(TN).
+
+Se puede calcular así:
+```{r}
+pdata <- predict(fit.sexbyage, newdata = test, type="response")
+confusionMatrix(data=as.factor(as.numeric(pdata>0.5)),
+                reference=as.factor(test$survived))
+```
+Entendemos como sensibilidad proporciones de verdaderos positivos (TP/(TP+FN)), especifidad (TN/(TN+FP)), Pos pred value (TP/(TP+FP)), neg pred value (TN/(TN+FN)), y accuracy (TP+TN/(TP+TN+FP+FN)).
+En principio los valores no está demasiado mal.
+
+Se puede optimizar el punto de corte con la CURVA ROC(receiver operating characteristic), que es un gráfico de sensibilidad a 1-especificidad(tasa de falsos positivos) para todos los puntos de corte.
+- Si ROC <= 50% el modelo no ayuda a discriminar.
+- Si 60% <= ROC <= 80% el modelo discrimina de forma adecuada.
+- Si 80% <= ROC <= 90% el modelo discrimina de forma excelente.
+- Si ROC >= 90% el modelo discrimina de forma excepcional
+
+```{r}
+performance_roc(fit.sexbyage, fit.sexage)
+```
+
+Como último punto vamos a ver como comunicar los resultados de un modelo de regresión logística.
+```{r}
+ggplot(train, aes(x=age, y=survived, fill=sex)) + geom_point(position=position_jitter(height = 0.05),
+                                                             aes(y=survived, color=sex)) + stat_smooth(method = "glm", method.args = list(family="binomial"), se=TRUE) #errores estándar
+```
+
+Otro punto importante es crear una tabla del modelo, de los resultados.
+```{r}
+library(texreg)
+texreg(fit.sexbyage, single.row=TRUE)
+```
+Tenemos los valores de los coeficientes así como su error estándar y significación. Y por otro lado los valores akaike (AIC), bayesian (BIC), log verosimilitud, devianza y numero de observaciones.
+
+Y por último, si no se sabe redactar los resultados es buena herramienta el report. que resume todo. 
+```{r}
+library(report)
+summary(report(fit.sexbyage))
+```
+

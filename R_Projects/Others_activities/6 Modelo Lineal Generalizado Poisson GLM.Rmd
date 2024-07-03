@@ -1,0 +1,339 @@
+---
+title: "Regresión de POISSON"
+author: "Daniel Barandiarán"
+date: "18/3/2022"
+output: html_document
+---
+
+Los datos de conteo, en los que no hay un límite superior para el número de recuentos, generalmente se dividen en dos tipos:
+
+Recuento. Número de ocurrencias de un evento (e.g. llamadas a un call center, visitas diarias a una web).
+Tasas. Recuento por unidad de tiempo / área / distancia, etc. (e.g. número de larvas por unidad de área, número de averías en un barco por tiempo de servicio).
+Hemos visto que ambos tipos de datos de recuento se pueden modelar utilizando un GLM con distribución de Poisson y enlace log (logarítmico). Para este modelo los efectos de los predictores sobre la respuesta son multiplicativos, no aditivos.
+
+log(E[Yi|Xi]) = b0 + b1*Xi
+E[Yi|Xi] = e^b0+b1*Xi
+
+Hay cuatro razones por las que es erróneo utilizar un modelo de regresión normal para datos de conteo: 
+Los errores no siguen una distribución Normal. 
+Puede dar lugar a predicciones negativas. 
+La varianza de la variable respuesta no es independiente de la media. 
+Los ceros que aparecen en la variable respuesta dan problemas a la hora de transformar la variables. Sin embargo, si los datos son elevados, es posible utilizar la distribución Normal.
+
+exp(beta) representa el riesgo relativo (RR) sobre la tasa de incidencia de los sucesos (la relación de las medias) asociado a un aumento de una unidad en el predictor X. 
+
+Predictor continuo 
+-> RR(X) = E[Y|X=x+1]/E[Y|X=x] = e^bx
+
+Por ejemplo, imagina que queremos evaluar el éxito del apareamiento de los leones (número de apareamientos exitosos) en función de su edad (número de años del león). En este caso, por cada año adicional del león, esperamos que su éxito de apareamiento, en promedio, cambie en un factor de exp(beta). Si este valor es positivo diremos que a mayor edad mayor chance de aparearse exitosamente, mientras que si es negativo diremos lo contrario.
+
+Predictor categórico
+-> RR(X) = E[Y|X=B]/E[Y|X=A] = e^bB-bA
+
+Ahora imagina que queremos comparar el éxito del apareamiento de los leones (número de apareamientos exitosos) entre leónes de la reserva A (nivel de referencia) y la reserva B. En este caso, esperamos que los leones de la reserva B cambien en un factor de exp(beta) su chance de obtener un apareamiento exitoso en relación a los leones de la reserva A. Si exp(beta) es positivo diremos que los leones de la reserva B tienen más chance de aparearse que los leones de la reserva A, mientras que si exp(beta) es negativo diremos lo contrario.
+
+
+MODELO CON UN PREDICTOR 
+
+```{r}
+install.packages("asbio", dependencies = TRUE)
+library(asbio)
+data(crabs)
+str(crabs)
+summary(crabs)
+```
+
+Exploramos datos
+```{r}
+install.packages("ggplot2")
+
+```
+```{r}
+library(ggplot2)
+ggplot(crabs, aes(x=width, y=satell)) + geom_point()
+
+```
+
+Parece que algo influye, hay cierta relación.
+
+Ajustar el modelo
+
+```{r}
+fit.width <- glm(satell~width, data=crabs, family = poisson)
+summary(fit.width)
+```
+Los residuos parece que tiene cierta asimetría, debe seguir una distribución normal y la mediana es un poco menor a 0, de ahí la asimetría.
+
+
+COEFICIENTES Y GRÁFICOS
+
+Recordemos como interpretar los coeficientes:
+- e^b0 es el efecto sobre la media de Y, cuando X=0
+- e^bi indica que con cada aumento en una unidad de X, la variable predictora genera un efecto multiplicativo sobre la media de Y.
+  - Si b=0 entonce e^b=1, y el recuento esperado es e^b0, X e Y no están relacionados.
+  - Si b>0 entonce e^b>1, y el recuento esperado es e^b veces mayor que cuando X=0.
+  - Si b<0 entonce e^b<1, y el recuento esperado es e^b veces menor que cuando X=0.
+  
+En nuestro caso:
+```{r}
+exp(coef(fit.width))
+```
+Beta 1 es superior a 0 (b1=0.16; e^b1=1.18) por lo tanto aquellas hembras de caparazón ancho tendrán un mayor número esperado de satélites.
+
+Para resumir los efectos
+```{r}
+library(effects)
+summary(allEffects(fit.width))
+```
+Vemos los valores esperados para cada datos de ancho. así como el intervalo de confianza para dichos cortes.
+
+Para visualizarlo:
+```{r}
+library(sjPlot)
+plot_model(fit.width, type="eff", show.data = TRUE)
+```
+
+Vemos que a más ancho más satélites, aumentando la incertidumbre a su vez.
+
+
+GLM CON MÁS DE UN PREDICTOR
+
+```{r}
+fit.all <- glm(satell ~ color + spine + width + weight, family = poisson, data=crabs)
+drop1(fit.all, ~., test = "Chisq")  # SS tipo II
+```
+Vemos que las variables weight y color son significativos, con mayor AIC. Son las que seleccionaríamos.
+
+```{r}
+fit.weight.color <- glm(satell ~ weight + color, family = poisson, data=crabs)
+summary(fit.weight.color)
+```
+El peso tiene una relación positiva con el número de satétiles. Mientras que los colores tienen una relación negativa con respecto al color de referencia que es el color 1, lo que quiere decir que el color 1 es el predominante para tener mayor número de satélites.
+
+Si queremos analizar la importancia de cada predictor podemos realizar un ANÁLISIS DE DOMINANCIA.
+```{r}
+library(dominanceanalysis)
+res <- dominanceAnalysis(fit.weight.color)z
+```
+
+dominancia condicional al resto de predictores
+```{r}
+plot(res, which.graph = "conditional",
+     fit.function = "r2.m")
+```
+
+dominancia general
+```{r}
+plot(res, which.graph = "general",
+     fit.function = "r2.m")
+```
+
+Vemos que weight tiene bastante mayor importancia en el modelo.
+
+Para termina rpodemos calcular el pseudo-R2. No mide el porcentaje de "varianza explicada", ya que este concepto no se aplica al GLM, pero tiene propiedades similares(rango, sensibilidad e interpretación).
+```{r}
+library(performance)
+r2(fit.weight.color)  # R2:Nagelkerke para distribución POISSON
+```
+Vemos entonces que logramos explicar el 38% del comportamiento del modelo.
+
+
+DIAGNÓSTICO Y PREDICCIÓN 
+
+```{r}
+plot(fit.width,1:4)
+```
+
+En este gráfico podemos ver si cumplen los supuestos básicos como la normalidad de residuos, homocedasticidad de varianza y puntos anómalos (distancia de Cook), incluso la linealidad.
+
+Graficos similares podemos obtener con ggplot 2 más limpios.
+```{r}
+library(ggResidpanel)
+resid_panel(fit.width)
+```
+Vemos que efectivamente se sobresalen de la linea de normalidad y no tiene forma de campana, así como dispersión de los residuos.
+
+Hay una tercera opción, un poco más compleja, a través de simulación. Realiza varios test para comprobar los supuestos
+```{r}
+library(DHARMa)
+simulateResiduals(fit.width, plot = TRUE)
+```
+
+Vemos lo mismo que lo anterior.
+
+Para predecir una respuesta vale con usar la función predict, con type="response". 
+```{r}
+test.data <- data.frame(width=27.7)
+predict.value <- predict(fit.width, test.data, type="response")
+predict.value2 <- predict(fit.width, newdata=data.frame(width=27.7), type = "response")
+predict.value
+predict.value2
+```
+
+
+SUPUESTOS PARA EL DIAGNÓSTICO 
+
+El supuesto de LINEALIDAD es clave para que las predicciones del modelo sean correctas. Para evaluar el supuesto utilizamos el gráfico de los residuos vs valores ajustados. Bajo linealidad, esperamos que no haya tendencia en los residuos además de los patrones inherentes a la naturaleza discreta de la respuesta. Ejemplos en los apuntes
+*> plot(fit.width,1:4)*
+Si se incumple el supuesto de linealidad podríamos utilizar una transformación no lineal adecuada para los predictores problemáticos o añadir términos de interacción.
+
+Supuesto de DISTRIBUCIÓN de la respuesta. Se asume que la desviación de los residuos (deviance residuals) sigue una distribución NORMAL aproximada (asintóticamente). El cumplimiento de este supuesto dependerá de la distribución de la respuesta, pero también del tamaño de la muestra y de la distribución de los predictores.
+Para comprobar si se cumple este supuesto observamos el gráfico QQ de los residuos estandarizados, los cuales deben seguir una distribución N(0,1). Es habitual tener pequeñas desviaciones de la diagonal en los extremos, incluso en condiciones de normalidad, aunque estas desviaciones son más evidentes si los datos no son normales.
+Si se incumple el supuesto de distribución podemos necesitar ajustar modelos más flexibles (y más complejos) que veremos más adelante en la lección.
+
+Supuesto de INDEPENDENCIA. Asumimos que las observaciones que hemos tomado son independientes. Esto depende del diseño por el cual se han tomar los datos, si los datos tienen una componente temporal o espacial podrían contener problemas de autocorrelación.
+Podemos analizar la autocorrelación de los residuos graficando los residuos en función de su índice de observación. 
+Si las observaciones son independientes no deberíamos obtener ningún patrón.En caso de que se observen subidas o bajadas consecutivas en los residuos vs index, podríamos estar ante problemas de autocorrelación (temporal o espacial).
+*> res = resid(fit.width)*
+We now plot the residual against the observed values of the variable width.
+*> plot(crabs$width, res, ylab="Residuals", xlab="width",*
+Si se incumple el supuesto de independencia, al igual que en el modelo lineal, poco se puede hacer si no hay independencia en las observaciones una vez recopilados. Si hay dependencia en serie (temporal), una diferenciación de la respuesta (e.g. Y[t+1]-Y[t]) puede conducir a observaciones independientes. Si la dependencia es de otro tipo deberás utilizar otro tipo de modelos, temporales o espaciales.
+
+Supuesto de ausencia de MULTICOLINEALIDAD. La multicolinealidad también puede estar presente en modelos lineales generalizados. A pesar del efecto no lineal de los predictores sobre la respuesta, los predictores se combinan linealmente. Debido a esto, si dos o más predictores están altamente correlacionados entre ellos, el ajuste del modelo se verá comprometido ya que el efecto lineal individual de cada predictor será difícil de separar del resto de predictores correlacionados.
+Una forma útil de detectar la multicolinealidad es inspeccionar el VIF de cada coeficiente. La situación es exactamente la misma que en la regresión lineal, ya que VIF solo analiza las relaciones lineales de los predictores:
+- VIF cercano a 1: ausencia de multicolinealidad.
+- VIF mayor de 5 o 10: cantidad problemática de multicolinealidad . Se aconseja eliminar el predictor con mayor VIF.
+*> vif(fit.width)*
+Si tenemos problemas de multicolinealidad puedes realizar un análisis de componentes principales (PCA) para los predictores e incluir en el modelo GLM los componentes que obtengas como nuevos predictores no correlacionados.
+
+BONDAD DE AJUSTE: SUB Y SOBRE-DISPERSIÓN.
+
+Un paso importante es evaluar la bondad de ajuste del modelo.
+
+Una variable con distribución de Poisson debe tener varY=mediaY. Si esto no ocurre podemos encontrarno con dos casos:
+- si varY>uY, se denomina sobredispersión (o dispersión excesiva)
+- si varY<uY, se denomina subdispersión (o dispersión insuficiente)
+
+Esto significa que las estimaciones de los coeficientes son correctas, pero los errores estándar (o desviacion estándar) son incorrectos, y el modelo no los tiene en cuenta. Pudiendo tener problema con la significación de los coeficientes.
+
+Las causas de la sobredispersión pueden ser:
+- Aparentes, debido a la mala especificación del modelo (como no incluir covariables o interacciones)
+- Real, debido a que la variación de los datos es realmente mayor que la media (si hay muchos valores igual a 0, o a la correlación de las observaciones).
+El procedimiento a seguir es agregar covariables e interacciones. Si esto no funciona podemos utilizar un GLM quasi-Poisson o un GLM binomial negativo.
+
+Como detectarla:
+- Sobredispersion -> desviación residual > grados de libertad
+- Hay sobre-dispersión si es significativamente mayor que 1
+
+En nuestro ejemplo de los cangrjos tenemos este problema. Vamos a comprobarlo:
+```{r}
+fit.width$deviance # vendría a ser la desviación residual
+```
+```{r}
+fit.width$df.residual  # los grados de libertad residuales
+```
+```{r}
+fit.width$deviance/fit.width$df.residual #cociente para saber si es mayor o menor
+```
+Vemos que es mayor que 1 (ser igual), pero vamos a comprobar si es significativo a partir de la prueba chi-cuadrado.
+```{r}
+pchisq(fit.width$deviance, fit.width$df.residual, lower.tail = FALSE)
+```
+Vemos que es menor a 0.05 por tanto decimos que es significativamente mayor. por lo que hay sobredispersión.
+
+Otra opción es através de la simulación de residuos:
+```{r}
+simres <- simulateResiduals(fit.width, refit=TRUE)
+testDispersion(simres, plot=FALSE)
+```
+Vemos que el valor de P es significativo, por lo que rechazaríamos la hipótesis nula de no sobredispersión, por lo que sí que tendríamos el problema.
+
+Cuando tenemos problemas de dispersión podemos tomar distintas alternativas:
+- Verificar si el modelo está especificado adecuadamente (ej. variables omitidas y forma funcional) (SUBDISPERSION)
+- Errores estándar robustos (SOBREDISPERSION)
+- Regresión quasi-poisson (SOBREDISPERSION)
+- Regresión binomial negativa: para datos de recuento excesivamente dispersos (SOBREDISPERSION)
+-Modelo de regresión inflado con cero: intentan tener en cuenta el exceso de ceros.
+-Regresión OLS: la variable respuesta de recuento a veces se transforma logarítmicamente y se analiza mediante regresión OLS 
+Estas dos últimas no las veremos.
+
+GLM CON ERRORES ESTÁNDAR ROBUSTOS
+Puedes utilizar el paquete sandwich para obtener los SE robustos y calcular los P-valores e IC con ellos.
+```{r}
+library(sandwich)
+cov.m1 <- vcovHC(fit.weight.color, type = "HC0")  # estimador de white
+```
+
+```{r}
+library(lmtest)
+(ct <- coeftest(fit.weight.color, vcov. = cov.m1)) #t test robusto
+```
+Vemos que ahora el color no es significativo. Los coeficientes no cambian, solo los SE y los P-valores.
+
+GLM QUASSI-POISSON: dando cuenta de la sobredispersión
+```{r}
+Qfit.weight.color <- glm(satell~weight + color, family = "quasipoisson", data = crabs)
+anova(Qfit.weight.color, test="Chisq")
+```
+En este caso el parámetro de dispersión no tiene restricciones. Ambos modelos (poisson y quasipoisson) van a ser similares pero se corrige el problema de sobredispersion, dando cuenta de ello. los valores de los parámetros van a ser iguales (se puede ver con summary), cambian los SE. Con el anova vemos que efectivamente el color ha dejado de ser significativo.
+
+GLM BINOMIAL NEGATIVA
+Es un modelo para datos de conteo positivos pero con mayor variabilidad que la permitida por errores de Poisson.
+
+```{r}
+library(MASS)
+NBfit.weight.color <- glm.nb(satell~weight + color, data=crabs)
+anova(NBfit.weight.color, test="Chisq")
+summary(NBfit.weight.color)
+```
+Vemos de nuevo que el color deja de ser significativo.
+
+Aquí obtendríamos los parámetros del modelo que sí cambian (summary)
+Obtenemos un vuenvo valor, Theta que es el parámetro de dispersión (0.960), si realizamos el cociente de desviación residual / grados de libertad veremos que la proporción es muy cercano a 1. No tenemos problemas de dispersión.
+
+
+REGRESION DE POISSON PARA DATOS DE TASAS DE OCURRENCIA
+
+Así se desarrollaría
+
+E[Yi|Xi]/Ai = e^b0 + b1+xi
+log(E[Yi|Xi]/Ai) = e^b0 + b1+xi
+log(E[Yi|Xi]) - log(Ai) = e^b0 + b1+xi
+log(E[Yi|Xi]) = log(Ai) + e^b0 + b1+xi
+
+El término log(Ai) se llama offset(compensación) y su papel es estandarizar la variable respuesta.
+
+```{r}
+library(ISwR)
+data("eba1977")
+#head(eba1977)
+summary(eba1977)
+```
+En este caso sería casos entre población, para realizarlo según la proporción.
+
+Ajustar el modelo
+```{r}
+eba1977$logpop <- log(eba1977$pop)
+fit.rate <- glm(cases ~ city + age + offset(logpop), family = poisson, data = eba1977)
+summary(fit.rate)
+```
+
+Aqui vemos que la variación residual tiene la mediana muy cercana a 0 lo cual está correcto. si vemos igual que la varianza residual a los grados de libertad es cercano a 1.5.
+
+```{r}
+exp(coef(fit.rate))
+```
+Aqui vemos entonces la exponente de los coeficientes para su interpretación (la interpretación está más arriba).
+
+Usando este modelo podemos predecir el numero de canceres de pulmon por habitante usando un nuevo conjunto de datos.
+```{r}
+test.data <- data.frame(city="Kolding",
+                        age="40-54",
+                        pop=1000,
+                        logpop=log(1000))
+predict.value <- predict(fit.rate, test.data,
+                         type="response")
+
+predict.value2 <- predict(fit.rate, newdata = data.frame(city="Kolding", age="40-54", pop=1000, logpop=log(1000)), type="response")
+predict.value
+predict.value2
+```
+
+VISION FINAL
+
+Vamos a resumir por pasos.
+
+1. Cuando tenga datos de recuento o tasas de incidencia usar una prueba GLM Poisson.
+2. Nos preguntamos si existe sobredispersión. Si no es el caso perfecto, si es el caso pasamos a la prueba GLM quasipoisson.
+3. Si seguimos con el problema de sobre dispersión pasamos a la prueba GLM Binomial negativa, que considera mayor variabilidad.
+

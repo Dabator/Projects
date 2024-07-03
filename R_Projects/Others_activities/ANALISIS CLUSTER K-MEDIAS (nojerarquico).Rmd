@@ -1,0 +1,354 @@
+---
+title: "ANÁLISIS CLUSTER"
+author: "Daniel Barandiarán"
+date: '2022-04-10'
+output: html_document
+---
+
+El Análisis cluster permite reconocer patrones en los datos automáticamente, sin la necesidad de agrupaciones previas (también llamado machine Learning no supervisado).
+
+El objetivo del análisis cluster es dividir el conjunto de datos en grupos de observaciones (agrupar), de manera que:
+
+las observaciones en el mismo grupo son lo más similares posible, 
+y las observaciones en diferentes grupos son muy distintas.
+Como los ejemplos no están etiquetados, la agrupación en clústeres se basa en el aprendizaje automático no supervisado.
+
+Es una forma de análisis exploratorio para datos multivariantes (con múltiples variables).
+
+Podemos realizar un análisis cluster en 5 pasos principales:
+
+1. Manipulación de los datos.
+- Limpieza: valores atípicos y valores faltantes
+- Estandarización
+- Cálculo de distancia
+
+2. Elección del método y la vinculación de grupos. 
+- Método jerárquico: en base a los vecinos más próximos o más lejanos, 
+- Métodos no jerárquico: en base algoritmo de k-medias (el más usual), o el de k-modas o k-meoides, etc.
+ 
+3. Elección del número de grupos finales 
+- de forma arbitraria 
+- basados en ciertos estadísticos de agrupación.
+
+4. Validación.
+- interna 
+- externa
+
+5. Representación e interpretación de los resultados. 
+- En qué se diferencian los grupos y 
+- cómo representarlos.
+
+Diferencia entre clasificación y agrupación.
+
+El análisis cluster es una técnica de aprendizaje no supervisado (i.e. no existen clases etiquetas, o grupos predefinidos), a diferencia del análisis de clasificación que es una técnica de aprendizaje supervisado (cuenta con etiquetas que indican el grupo al que pertenece cada observación).
+
+El análisis cluster se puede dividir en dos tipos: 
+
+- Jerárquico si nuestro objetivo es obtener una estructura de asociación en cadena de las observaciones (y crear un árbol de agrupación o dendrograma), y 
+- No jerárquico cuando no necesitamos crear el dendrograma. 
+
+
+ANALISIS CLUSTER DE PARTICIÓN POR K-MEDIAS (NO JERARQUICO)
+
+El análisis cluster de partición es una técnica que busca descubrir grupos en los datos optimizando una medida objetivo específica y mejorando la calidad de las particiones de manera iterativa. 
+El algoritmo de k-medias se basa en centroides. Dado un número de grupos k que deseamos, el objetivo es encontrar una partición donde las distancias (euclídeas) desde las osbervaciones al centroide de cada grupo sean mínimas.
+
+- Podemos elegir el número de grupos (k) o el número de iteraciones. Alternativa: seleccionar k según algún criterio de validación.
+- El algoritmo asigna repetidamente puntos al centroide más cercano utilizando la distancia euclídea. Alternativa: k.medoides o PAM.
+- Los centroides iniciales se asignan de forma aleatoria, por lo que se pueden generar distintas agrupaciones con los mismo datos. Alternativas: k-medias++, o k-medias genético, o k-medias inteligente.
+- Es sensible también a los valores atípicos y al ruido. Alternativas: k-medianas o k-medoides.
+- Se aplica a datos continuos. Alternativa: k-modass, para datos categóricos.
+- No es una técnica adecuada cuando los patrones no tienen una forma geométrica definida. Alternativa: partición basada en la densidad.
+
+
+Exploración y preprocesado de datos
+
+La exploración y preparación (o preprocesamiento) de los datos debe ser el primer paso de cualquier análisis cluster. Las decisiones que tomemos en este punto pueden afectar el resultado final e interpretación del análisis. (No hay variables dependiente ni independientes)
+
+Esto incluye:
+
+- Resumir los datos. Identificar valores ausentes (NAs) y problemas de escala.
+- Visualizar los datos. Identificar valores atípicos (outliers) y la relación entre las variables.
+- Escalar (estandarizar o normalizar) los datos. Función scale()
+- (opcional) Realizar un mapa de calor con los datos. Función pheatmap()
+
+¿Por qué escalar? La combinación de datos en una medida de similitud para su agrupación requiere que los datos tengan la misma escala. Entonces, al igual que con cualquier problema de aprendizaje automático, si las variables están medidas en escalas diferentes, debes escalar los datos antes de realizar el análisis cluster.
+
+También es recomendable que las filas de los datos tengan nombres que nos permitan identificar las observaciones. Puedes hacerlo manualmente con la función rownames(). ¡Inténtalo con tus propios datos!
+
+
+Otros tipos de transformaciones
+La normalización es útil cuando tus datos tienen una distribución gaussiana.
+
+A veces, un conjunto de datos se ajusta a una distribución de la ley de potencia que agrupa los datos en el extremo inferior. En estos casos es mejor aplicar una transformación logarítmica.
+
+Cuando los datos no se ajustan a una distribución de ley de potencia o gaussiana, podemos dividir los datos en intervalos donde cada intervalo contenga el mismo número de ejemplos. Estos límites de intervalo se denominan cuantiles . 
+
+Después de convertir los datos en cuantiles, la similitud entre dos ejemplos es inversamente proporcional al número de ejemplos entre esos dos ejemplos.
+
+Entonces, este puede ser un enfoque general que se aplique a cualquier distribución de datos. Sin embargo, para crear cuantiles que sean indicadores fiables de la distribución de datos subyacente, necesita muchos datos. Como regla general, para crear “n” cuantiles, deberías tener al menos “10*n” ejemplos. Si no tiene suficientes datos, aplica la la normalización.
+
+Ejemplo con datos:
+
+1. Resumir datos: identificar valores ausentes
+```{r}
+head(mtcars)
+```
+Utilizar la función summary() para identificar valores ausentes o perdidos, valores con 0 o distintas escalas. En este caso escogemos estas dos variables.
+```{r}
+summary(mtcars[c("hp", "mpg")])
+```
+Vemos que no hay NAs pero que están en unidades distintas.
+Si hubiese los podemos eliminar asi:
+```{r}
+df <- na.omit(mtcars) #para eliminar los NA
+```
+
+2. Seleccionar y visualizar datos: identificar valores atípicos (outliers)
+```{r}
+library(GGally)
+ggpairs(mtcars[c("hp", "mpg")])
+```
+Obtenemos dos gráficos de densidad por cada variable, la correlación de ambos, y el gráfico de dispersión, el cuál nos dice si hay ouliers. En nuestro caso no vemos ningún punto fuera de lo común.
+
+3. Estandarizar los datos
+La escala en la que se miden las variables y la magnitud de su varianza puede afectar en gran medida a los resultados obtenidos por clustering.
+Estandarización -> Z = (xi-u)/sd  -> Z~N(u=0,sd=1)
+```{r}
+mtcars_std <- scale(mtcars[c("hp", "mpg")])
+summary(mtcars_std)
+```
+Ahora ya están estandarizadas y con valores similares.
+
+
+SIMILITUD
+
+Antes de poder agrupar observaciones similares, primero debemos definir cómo medimos la SIMILITUD entre observaciones. La creación de una métrica de similitud requiere que comprendas cuidadosamente sus datos y cómo derivar la similitud de sus características.
+Medidas de asociación entre casos
+
+Para agrupar ejemplos similares podemos combinar los valores de las características de las observaciones en una métrica, denominada medida de similitud.
+
+La similitud entre casos puede medirse mediante la distancia entre ellos. A menor distancia (“diferencia”), mayor similitud en las características de los casos.
+la DISTANCIA mide que tán diferentes son dos observaciones: distancia = 1 - similitud
+Toma valores entre [0,1], 0=observaciones idénticas, 1=observaciones distintas.
+
+Podemos medir la distancia entre dos puntos (entre dos variables) como la hipótenusa (la raíz cuadrada de la suma de los catetos al cuadrado). Entre dos puntos: A(0,0) y B(1,2) sería. h = sqr(2^2+1^2) = 2.2
+
+Hay distintas formas de medir esta distancia, la más sencilla es la DISTANCIA EUCLÍDEA y se puede aplicar a datos de cualquier tipo. Al calcular la distancia entre cada par de sitios obtenemos una matriz de distancias.
+
+En R, utilizaremos la función dist() para calcular la distancia entre casos : dist(x, method = “euclidean”)
+```{r}
+x <- data.frame(X=c(1,0), Y=c(2,0), row.names = c("A", "B"))
+x
+```
+```{r}
+dist(x)
+```
+
+donde x es una matriz de datos o data frame, y method es el argumento donde indicamos qué tipo de distancia queremos calcular. Las opciones disponibles son; "euclidean", "maximum", "manhattan", "canberra", "binary" o "minkowski". Revisa la ayuda de R para obtener más información de cada una o consulta el FAQs.
+
+También es útil esta función  para calcular la distancia teniendo tres observaciones por ejemplo. Manualmente haríamos lo mismo de antes de calcular la hipotenusa de dos a dos puntos obteniendo así una matriz. Pero más rápido es así:
+```{r}
+x <- data.frame(X=c(1,0,3), Y=c(2,0,0), row.names = c("A", "B", "C"))
+x
+```
+```{r}
+dist(x)
+```
+
+Las medidas de distancia son diferentes según el tipo de dato y lo que queremos medir. La más popular es la distancia euclídea. Consulta el apartado EXTRA de esta semana para conocer otras medidas de distancia y cuando aplicarlas.
+
+Hay muchas funciones R para calcular distancias entre pares de observaciones:
+
+- dist() [del paquete stats ]: Acepta solo datos numéricos como entrada.
+- get_dist() [ del paquete factoextra ]: Acepta solo datos numéricos como entrada. En comparación con la función dist () estándar, admite medidas de distancia basadas en correlación, incluidos los métodos "pearson", "kendall" y "spearman".
+- daisy() [ del paquete de cluster ]: es capaz de manejar otros tipos de variables (por ejemplo, nominal, ordinal, (a) binaria simétrica). En ese caso, el coeficiente de Gower se utilizará automáticamente como métrica. Es una de las medidas de proximidad más populares para tipos de datos mixtos. Para obtener más detalles, lea la documentación de R de la función daisy () ( ? Daisy ).
+- vegdist() y betadiver() [del paquete vegan]: reune varias medidas específicas del ámbito biológico.
+Todas estas funciones calculan distancias entre filas de datos.
+
+
+TENDENCIA DE AGRUPACIÓN
+
+Un gran problema, en el análisis de cluster, es que los métodos de agrupación devolverán grupos o clusters incluso si los datos no contienen ninguna agrupación realmente. 
+
+Por ello, antes de realizar un análisis cluster es importante evaluar la idoneidad o viabilidad de la agrupación, es decir, estudiar si los datos tienen una estructura de agrupación inherente.
+
+Existen métodos estadísticos y visuales para evaluar la tendencia de agrupación:
+- Estadística de Hopkins. Función hopkins(). Evalúa si el conjunto de datos presenta una estructura aleatoria o no.
+- Evaluación visual de tendencia (VAT). Función fviz_dist(). Realiza un mapa de calor con las distancias entre observaciones, reordenando las observaciones para que las que sean más similares se coloquen cercanas entre sí.
+
+Estadístico Hopkins
+Compara nuestros datos con unos datos totalmente aleatorios con la misma variabilidad que los nuestros. Entonces calcula la distancia euclídea de ambos y se realiza el cociente uno de ellos entre la suma de ambos. Por tanto:
+H=0.5 significa que las distancias en el conjunto de datos aleatorio y el real son similares, y por tanto nuestros datos no muestran ninguna tendencia de agrupación. Si fuese mayor o menor a ese 0.5 entonces diríamos lo contrario.
+```{r}
+library(clustertend)
+library(hopkins)
+set.seed(123)
+clustertend::hopkins(mtcars_std, n = nrow(mtcars_std) - 1) #para un copnjunto aleatorio podemos seleccionar tantas observaciones como nuestro conjunto de datos - 1
+```
+Al obtener un valor distinto a 0.5 podemos concluir que los datos si muestran una tendencia de agrupación digna de analizar.
+
+
+Evaluación visual de tendencia (VAT)
+
+Usamos la función fviz_dist() para realizar un mapa de calor. En rojo aparecen las áreas con menor distancia, mientras que en azul se encuentran las de maypr distancia. Si se observan áreas claramente marcadas de un color entonces existe agrupación, por el contrario diríamos que está distribuidas aleatoriamente.
+```{r}
+mtcars_dist <- dist(mtcars_std)
+library(ggplot2)
+library(factoextra)
+fviz_dist(mtcars_dist, lab_size = 0.1, show_labels = FALSE) 
+```
+En este caso vemos que sí que tiene sentido realizar una agrupación.
+
+Otra manera sería:
+```{r}
+library(pheatmap)
+pheatmap(as.matrix(USArrests_dist), treeheight_row = 0, treeheight_col = 0)
+```
+
+
+ANÁLISIS CLUSTER POR K-MEDIAS
+
+El algoritmo k-means agrupa las observaciones en k agrupaciones minimizando las distancias entre las observaciones y el centroide de su agrupación (minimiza la suma de cuadrados de las observaciones a los centros de agrupación asignados). El centroide de un grupo es la media de todos los puntos del grupo.
+
+Ajusta el modelo con la función kmeans() indicándole el número de grupos (argumento centers) y guárdalo en un objeto. Inicialmente, comienza con un valor arbitrario de k, más adelante discutiremos cómo evaluar este número. El objeto creado tendrá información de la calidad de la partición (%), los centroides (medias del grupo), la variabilidad y tamaño de cada grupo.
+
+```{r}
+set.seed(123)
+mtcars_km <- kmeans(mtcars_std, centers = 2) # k=2
+mtcars_km
+```
+La calidad (variabilidad de la aplicación) es buena (62%), siempre comparándola con el mismo número de k.
+
+Representa los resultados del análisis cluster por k-medias mediante diagramas de dispersión agrupando las observaciones según los clusters formados. Utiliza para ello la función fviz_cluster() del paquete factoextra.
+```{r}
+fviz_cluster(mtcars_km, mtcars_std, labelsize = 5, geom="point",
+             ellipse.type = "norm", main="k=2 grupos") #geom="point" para quitar las etiquetas de los puntos.
+```
+Vemos que hay algunos valores que se superponen.
+
+Podemos obtener los valores obtenidos en el cuadro anterior mediante las siguientes funciones.
+```{r}
+head(mtcars_km$cluster)
+```
+```{r}
+mtcars_km$withinss
+```
+```{r}
+mtcars_km$size
+```
+```{r}
+mtcars_km$centers
+```
+Vemos que el grupo 1 tiene mayor potencia, mientras que el grupo 2 tiene mayor eficiencia.
+
+nstart. Debido a que las posiciones del centroide se eligen inicialmente al azar, el algoritmo de k-medias puede devolver resultados significativamente diferentes en ejecuciones sucesivas. Para resolver este problema, utiliza una semilla de aleatoriedad antes de ejecutar k-means (función set.seed; esto te permitirá reproducir los resultados más adelante.) y elige un conjunto de valores iniciales para los centros de los grupos (argumento nstart de la función kmeans). 
+
+No es necesario que entienda las matemáticas detrás de k-medias para este curso. Sin embargo, si tiene curiosidad, consulte el siguiente link: https://developers.google.com/machine-learning/clustering/algorithm/run-algorithm
+
+
+Interpretación y representación
+
+Asegúrate de que tu agrupación arroja resultados razonables. 
+
+La relación entre el tamaño (cardinalidad) y variabilidad (magnitud) de los grupos, debe ser lineal. Si no es así puede que te encuentres ante un grupo que supone una mala agrupación. Las medias de los grupos (centroides) te permitirán describir las características principales de cada grupo. Puedes graficarlos con el paquete paquete flexclust, utilizar gráficos de dispersión, gráficos todo en uno, gráficos radar, etc.. Para determinar la importancia de cada variable en la agrupación utiliza el paquete featureimpcluster.
+
+```{r}
+mtcars_std <- as.data.frame(scale(mtcars[c("hp", "mpg", "wt")]))
+set.seed(123)
+mtcars_km <- kmeans(mtcars_std, centers = 4)
+```
+```{r}
+mtcars_km$size #tamaños de los grupos (cardinalidad)
+```
+Esto nos sugiere que igual no es muy recomendable usar 4 clusters. 
+```{r}
+mtcars_km$withinss # variabilidad en los grupos (SSintra o magnitud)
+```
+Vemos que el segundo tiene el que menos variabilidad y el 4 tiene mucha variabilidad (no son muy homogeneas por lo que no está muy representado).
+
+```{r}
+library(car)
+plot(x=mtcars_km$size, y=mtcars_km$withinss) 
+scatterplot(x=mtcars_km$size, y=mtcars_km$withinss)
+```
+Vemos que hay linealidad entre ambos.
+
+Resumen por grupo:
+```{r}
+mtcars_km$centers #medias de los grupos
+```
+Vemos que el grupo 1 destaca en caballos, en eficiencia destaca el grupo 3, y en peso el 2.
+También podemos verlos sin escalar.
+```{r}
+aggregate(mtcars[,c("hp", "mpg", "wt")], list(mtcars_km$cluster),mean)
+```
+```{r}
+aggregate(mtcars[,c("hp", "mpg", "wt")], list(mtcars_km$cluster),sd)
+```
+
+Veamos en gráficos.
+Función as.kcca(). RESUMEN DE LAS VARIABLES
+```{r}
+library(flexclust)
+set.seed(123)
+cl_kcca <- as.kcca(mtcars_km, mtcars_std)
+barplot(cl_kcca) #para cada grupo
+barplot(cl_kcca, bycluster=FALSE) #para cada variable
+```
+
+
+Función FeatureImpCluster(). IMPORTANCIA DE LAS VARIABLES.
+
+Tambien podemos observalo en agrupación. Así nos damos cuenta de por donde van los datos.
+```{r}
+devtools::install_github("o1iv3r/FeatureImpCluster")
+library(FeatureImpCluster)
+importance <- FeatureImpCluster(cl_kcca,as.data.table(mtcars_std))
+plot(importance)
+```
+Vemos así que la variable mpg ha sido la más importante para realizar la agrupación.
+
+Función fviz_cluster(). DISPERSIÓN + CLUSTER.
+```{r}
+library(factoextra)
+fviz_cluster(mtcars_km, mtcars_std, choose.vars = c("wt", "hp"))
+```
+Vemos la dispersión y el agrupamiento en dos dimensiones, pero con dos variables.
+
+Función fviz_cluster(). PCA + cluster
+```{r}
+fviz_cluster(mtcars_km, data=mtcars_std) # PCA+cluster
+```
+Para observar las tres variables en un solo gráfico es necesario el PCA(análisis de componentes principales). En el gráfico encontramos dos dimensiones en donde en cada una de estas nuevas variables(dimensiones) se combinan las tres anteriores variables. Vemos que la dimensión 1 es la que más explica el agrupamiento
+Otra verificación simple es identificar pares de ejemplos que se sabe que son más o menos similares que otros pares. Los ejemplos que uses para verificarlo deben ser representativos del conjunto de datos. 
+Función ggpairs(). Matríz de gráficos
+```{r}
+mtcars_std$cluster <- as.factor(mtcars_km$cluster)
+library(GGally)
+ggpairs(mtcars_std, aes(col=cluster))
+```
+Aquí observamos las correlaciones con su significación, las densidades, diagrama de cajas, dispersión e histogramas, todos de cada grupo en cada variable.
+
+Función ggradar2(). Gráfico radar 
+```{r}
+df <- as.data.frame(mtcars_km$centers) +2 #cambio de escala
+df$group <- 1:4
+devtools::install_github("xl0418/ggradar2",dependencies=TRUE)
+library(ggradar2)
+ggradar2(df)
+```
+Cambaimos la escala para poder visualizar mejor el gráfico. Aquí vemos lo mencionado anteriormente donde cada grupo se distribuye de forma diferente en cada variable, de ahí la agrupación. El grupo 1 tiene más caballos, el 2 más peso, el 3 más eficiencia, y el 4 es el más equilibrado.
+Se puede obtener conclusiones de cómo se han agrupado con más detalles viendo sus valores sin escalar.
+
+Predicción 
+Si bien el anáisis Cluster (k-medias) no es muy conveniente para realizar predicciones si no puede servir para hacernos alguna idea en los planteamientos, cuando aun se está explorando e intentando conocer la estructura de los datos 
+Creamos una nueva observación con los datos escalados para averiguar a que grupo pertenecería.
+```{r}
+mtcars_new <- data.frame(hp=-.2, mpg=.2, wt=0) #scaled
+library(clue)
+(pred <- cl_predict(mtcars_km, mtcars_new))
+```
+Esto nos indica que pertenecería al grupo 4.
+
+Si encuentras algún problema en la agrupación, verifica la preparación de datos y las decisiones que has tomado acerca del método de agrupación.

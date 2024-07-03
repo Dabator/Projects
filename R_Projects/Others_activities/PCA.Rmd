@@ -1,0 +1,174 @@
+---
+title: "Principal Component Analysis"
+author: "Dataset decathlon2"
+output:
+  pdf_document: default
+---
+This dataset contains 27 individuals and 13 variables, 2 quantitative variables are considered as illustrative, 1 qualitative variable is considered as illustrative.
+
+- - -
+
+```{r, echo = FALSE}
+library(FactoMineR)
+load('C:/Users/PC/Desktop/master R/RMDs tema 9/Workspace.RData')
+```
+### 1. Study of the outliers
+The analysis of the graphs does not detect any outlier.
+
+- - -
+
+### 2. Inertia distribution
+The inertia of the first dimensions shows if there are strong relationships between variables and suggests the number of dimensions that should be studied.
+
+The first two dimensions of analyse express **54.95%** of the total dataset inertia ; that means that 54.95% of the individuals (or variables) cloud total variability is explained by the plane.
+This percentage is relatively high and thus the first plane well represents the data variability.
+This value is greater than the reference value that equals **42.87%**, the variability explained by this plane is thus significant
+(the reference value is the 0.95-quantile of the inertia percentages distribution obtained by simulating 1885 data tables of equivalent size on the basis of a normal distribution).
+
+From these observations, it should be better to also interpret the dimensions greater or equal to the third one.
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+par(mar = c(2.6, 4.1, 1.1, 2.1))
+ggplot2::ggplot(cbind.data.frame(x=1:nrow(res$eig),y=res$eig[,2])) + ggplot2::aes(x=x, y=y)+ ggplot2::geom_col(fill="blue") + ggplot2::xlab("Dimension") + ggplot2::ylab("Percentage of variance") + ggplot2::ggtitle("Decomposition of the total inertia") + ggplot2::theme_light() + ggplot2::theme(plot.title = ggplot2::element_text(hjust =0.5)) + ggplot2::scale_x_continuous(breaks=1:nrow(res$eig))
+```
+
+**Figure 2 - Decomposition of the total inertia**
+
+An estimation of the right number of axis to interpret suggests to restrict the analysis to the description of the first 1 axis.
+These axis present an amount of inertia greater than those obtained by the 0.95-quantile of random distributions (37.5% against 24.49%).
+This observation suggests that only this axis is carrying a real information.
+As a consequence, the description will stand to these axis.
+
+- - -
+
+### 3. Description of the dimension 1
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+c("BOURGUIGNON", "Karpov", "Macey", "Sebrle", "Clay", "YURKOV", 
+"Nool", "MARTINEAU", "CLAY", "NOOL", "Zsivoczky", "Drews", "Warners", 
+"BERNARD", "Barras")
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.PCA(res, select = drawn, axes = c(1,2), choix = 'ind', invisible = 'quali', title = '', cex = cex)
+```
+
+**Figure 3.1 - Individuals factor map (PCA)**
+*The labeled individuals are those with the higher contribution to the plane construction.*
+
+The Wilks test p-value indicates which variable factors are the best separated on the plane (i.e. which one explain the best the distance between individuals).
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+wilks.p <-
+c(Competition = 0.017780755365610978)
+wilks.p
+```
+There only is one possible qualitative variable to illustrate the distance between individuals : *Competition*.
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+sample = sample(rownames(res$call$X), length(rownames(res$call$X)))
+res$call$X = res$call$X[sample,]
+res$ind$coord = res$ind$coord[sample[!sample %in% rownames(res$ind.sup$coord)],]
+res$ind.sup$coord = res$ind.sup$coord[sample[sample %in% rownames(res$ind.sup$coord)],,drop=FALSE]
+drawn <-
+c("BOURGUIGNON", "Karpov", "Macey", "Sebrle", "Clay", "YURKOV", 
+"Nool", "MARTINEAU", "CLAY", "NOOL", "Zsivoczky", "Drews", "Warners", 
+"BERNARD", "Barras")
+hab <-
+"Competition"
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plotellipses(res, axes = 1:2, select = drawn, keepvar = hab, title = '', cex = cex)
+```
+
+**Figure 3.2 - Individuals factor map (PCA)**
+*The labeled individuals are those with the higher contribution to the plane construction.*
+*The individuals are coloured after their category for the variable* Competition.
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+c("Points", "X100m", "High.jump", "Long.jump", "X110m.hurdle", 
+"Pole.vault", "Shot.put", "Discus")
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.PCA(res, select = drawn, axes = 1:2, choix = 'var', title = '', cex = cex)
+```
+
+**Figure 3.3 - Variables factor map (PCA)**
+*The variables in black are considered as active whereas those in blue are illustrative.*
+*The labeled variables are those the best shown on the plane.*
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+c("Decastar", "OlympicG")
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.PCA(res, select = drawn, axes = 1:2, choix = 'ind', invisible = c('ind', 'ind.sup'), title = '', cex = cex)
+```
+
+**Figure 3.4 - Qualitative factor map (PCA)**
+*The labeled factors are those the best shown on the plane.*
+
+* * *
+
+The **dimension 1** opposes individuals such as *Karpov*, *Clay* and *Sebrle* (to the right of the graph, characterized by a strongly positive coordinate on the axis)
+to individuals such as *BOURGUIGNON*, *MARTINEAU* and *NOOL* (to the left of the graph, characterized by a strongly negative coordinate on the axis).
+
+The group in which the individuals *Karpov*, *Clay* and *Sebrle* stand (characterized by a positive coordinate on the axis) is sharing :
+
+- high values for the variables *Points*, *Discus*, *Long.jump*, *Shot.put* and *Javeline* (variables are sorted from the strongest).
+- low values for the variables *Rank*, *X100m*, *X110m.hurdle* and *X400m* (variables are sorted from the weakest).
+
+The group in which the individuals *BOURGUIGNON*, *MARTINEAU* and *NOOL* stand (characterized by a negative coordinate on the axis) is sharing :
+
+- high values for the variables *X100m*, *Rank* and *X110m.hurdle* (variables are sorted from the strongest).
+- low values for the variables *Points*, *Long.jump*, *Shot.put* and *High.jump* (variables are sorted from the weakest).
+
+
+- - -
+
+### 4. Classification
+
+```{r, echo = FALSE}
+res.hcpc = HCPC(res, nb.clust = -1, graph = FALSE)
+```
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+c("BOURGUIGNON", "Karpov", "Macey", "Sebrle", "Clay", "YURKOV", 
+"Nool", "MARTINEAU", "CLAY", "NOOL", "Zsivoczky", "Drews", "Warners", 
+"BERNARD", "Barras")
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.HCPC(res.hcpc, choice = 'map', draw.tree = FALSE, select = drawn, title = '')
+```
+
+**Figure 4 - Ascending Hierarchical Classification of the individuals.**
+*The classification made on individuals reveals 3 clusters.*
+
+
+The **cluster 1** is made of individuals such as *CLAY*, *BERNARD*, *BOURGUIGNON*, *Warners*, *Nool* and *Drews*. This group is characterized by :
+
+- high values for the variables *Pole.vault* and *X1500m* (variables are sorted from the strongest).
+- low values for the variables *High.jump* and *Discus* (variables are sorted from the weakest).
+
+The **cluster 2** is made of individuals such as *YURKOV*, *MARTINEAU*, *NOOL*, *Macey*, *Zsivoczky* and *Barras*. This group is characterized by :
+
+- high values for the variable *High.jump*.
+- low values for the variables *Pole.vault*, *X1500m* and *Long.jump* (variables are sorted from the weakest).
+
+The **cluster 3** is made of individuals such as *Sebrle*, *Clay* and *Karpov*. This group is characterized by :
+
+- high values for the variables *Points*, *Long.jump*, *Shot.put*, *Discus* and *Javeline* (variables are sorted from the strongest).
+- low values for the variables *X100m*, *Rank* and *X400m* (variables are sorted from the weakest).
+
+- - -
+
+## Annexes
+```{r, comment = ''}
+dimdesc(res, axes = 1:1)
+```
+**Figure 5 - List of variables characterizing the dimensions of the analysis.**
+
+
+
+```{r, comment = ''}
+res.hcpc$desc.var
+```
+**Figure 6 - List of variables characterizing the clusters of the classification.**
+
+

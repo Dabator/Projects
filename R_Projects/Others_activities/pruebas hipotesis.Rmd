@@ -1,0 +1,117 @@
+---
+title: "pruebas de hipótesis"
+author: "Daniel Barandiarán"
+date: "13/1/2022"
+output: html_document
+---
+
+En primer lugar entenderemos cómo se calcula el intervalo de confianza para la media.
+Necesitaremos: la media de la muestra; el número de la muestra (n); la desviación estándar (s), y el error estándar (s/sqr(n)); y el estadístico t.
+```{r}
+mean<-mean(ToothGrowth$len)
+stddev<-sd(ToothGrowth$len)
+n<-length(ToothGrowth$len)
+qt(0.975, df=n-1)#intervalo de confianza y grados de libertad.
+error <- qt(0.975, df=n-1)*stddev/sqrt(n)
+
+lower_bound <- mean - error 
+
+upper_bound <- mean + error 
+lower_bound
+upper_bound
+```
+
+y ahora que tenemos una idea de como funciona el IC veremos la forma rápida.
+
+```{r}
+library(DescTools)
+MeanCI(x=ToothGrowth$len, method="classic", type="stud")
+```
+
+Hay bastante teoría al respecto (Tema 4), sobre los tipos de errores I y II. El p-valor, la significatividad alfa (o probabilidad de decir que hay algo cuando en realidad no hay) y el valor beta (probabilidad de decir que no hay cuando en realidad si hay). Además de la interpretacion de estos valores de las hipótesis, que su`puestos deben cumplir ciertos datos para realizar ciertas pruebas (paramétricas, no paramétricas y robustas).
+
+Uno de los supuestos que deben cumplirse para realizar pruebas paramétricas es la normalidad y homocedasticidad. Ejemplo
+h0 -> la variable mpg sigue una distribución normal
+h1 -> la variable se comporta de forma distinta
+
+```{r}
+data("mtcars")
+head(mtcars)
+```
+
+```{r}
+shapiro.test(mtcars$mpg)
+```
+Como el p-valor es superior a 0,05, entonces no podemos rechazar la hipótesis nula, por lo que aceptamos la normalidad de los datos.
+También se puede averiguar a través de gráficos. Histogramos o gráficos QQ
+
+```{r}
+par(mfrow=c(1,2)) #mostrar dos gráficos en un cuadro en horizontal (1 fila)
+hist(mtcars$mpg, freq = FALSE) #histograma que mquestre en el eje Y densidad y NO FRECUENCIA
+lines(density(mtcars$mpg)) #añadir linea de densidad al histograma
+
+library(car)
+qqPlot(mtcars$mpg, distribution="norm") #gráfico QQ 
+```
+Podemos afirmar la normalidad debido a que no se aleja tanto la forma, y que en el gráfico QQ los puntos no sales de las lineas.
+
+Si se cumple la normalidad (o pruebas poco sensibles) podemos usar pruebas paramétricas, si por el contrario no se cumple la normalidad (o son pruebas sensibles) podemos usar no paramétricas.
+
+Ahora comprobaremos la homocedasticidad de los datos (varianza constante o varianza similar entre grupos). Tenemos 3 pruebas posibles: paramétricas (de Bartlett, o de Levene), y no paramétrica (prueba de Fligner-Killeen). Veamos las paramétricas:
+
+h0 los datos cumple la homocedasticidad entre grupos
+h1 existe varianza entre grupos con distinta cilindrada (cyl)
+
+```{r}
+bartlett.test(mpg~factor(cyl), 
+              data=mtcars)
+```
+```{r}
+library(car)
+leveneTest(mpg~factor(cyl), 
+              data=mtcars)
+```
+```{r}
+fligner.test(mpg~factor(cyl), 
+              data=mtcars)
+```
+
+
+Vemos aquí que el p-valor en todas las pruebas es menor a 0,05, por lo tanto son significativos y decimos que rechazamos la hipótesis nula y aceptamos que existe varianza entre grupos o heterocedasticidad.Habría que usar correcciones para arreglarlo.
+Tambien podemos observar la varianza con el diagrma de cajas.
+
+```{r}
+boxplot(mpg~factor(cyl), data=mtcars)
+```
+Vemos que la sde 4 cilindradas tienen mucha variacion en comparación al resto.
+
+Las pruebas para corroborar los supuestos suelen tener sus propios supuestos. Las pruebas de normalidad pueden asumir homocedasticidad, y las pruebas de homocedasticidad asumen normalidad. Y ambas asumen un tamaño de muestra “suficiente”.
+
+
+Estos som los paquertes que necesitaremos para realizar todas las pruebas y gráficos.
+```{r}
+list.of.packages <- c("tidyverse",
+                      "ggpubr",
+                      "ggstatsplot",
+                      "openintro",
+                      "rstatix",
+                      "DescTools",
+                      "WRS2")
+new.packages <- list.of.packages[!(list.of.packages %in%
+                                     installed.packages()[,"Package"])]
+if(length(new.packages))install.packages(new.packages)
+```
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(ggstatsplot)
+library(openintro)
+library(rstatix)
+library(DescTools)
+library(WRS2)
+```
+
+Más información sobre las funciones de los paquetes rstatix y ggstatsplot:
+https://github.com/kassambara/rstatix
+https://github.com/IndrajeetPatil/ggstatsplot

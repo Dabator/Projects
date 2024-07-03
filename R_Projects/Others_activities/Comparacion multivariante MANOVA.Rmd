@@ -1,0 +1,401 @@
+---
+title: "Comparación multivariante-MANOVA_NPMANOVA"
+author: "Daniel Barandiarán"
+date: '2022-05-06'
+output: html_document
+---
+
+El análisis multivariante de la varianza (MANOVA) es una extensión de su versión univariante ANOVA para el caso de dos o más variables respuesta continuas.  Esto es útil cuando tenemos múltiples variables respuestas que miden diferentes aspectos de algún tema en común.
+
+Por ejemplo, varios puntajes de exámenes para tener una medida del rendimiento académico general.
+
+El MANOVA unidireccional  o de una vía prueba simultáneamente las diferencias estadísticas para múltiples variables de respuesta mediante la agrupación dada por un único predictor.
+
+Por ejemplo, podemos realizar un experimento en el que damos dos tratamientos (A y B) a dos grupos de ratones y nos interesa el peso y la altura de los ratones. En ese caso, el peso y la altura de los ratones son nuestras variables respuesta (o dependientes), y nuestra hipótesis es que ambos juntos se ven afectados por la diferencia en el tratamiento. Se podría utilizar un análisis de varianza multivariado para probar esta hipótesis.
+
+
+¿Por qué no realizamos múltiples ANOVA para cada variable respuesta? 
+El ANOVA nos permite detectar diferencias de grupo en una sola variable respuesta. Sin embargo, en algunas circunstancias estamos interesados en múltiples variables respuesta, y en estos casos el modelo ANOVA simple es inadecuado.
+
+La razón es que: cuantas más pruebas realizamos con los mismos datos, más inflamos la tasa de error tipo I (mayor probabilidad de cometer un error de Tipo I).
+
+Además, MANOVA, al incluir todas las variables dependientes en el mismo análisis, puede capturar la relación entre las variables respuesta. En decir, el ANOVA solo puede decirnos si los grupos difieren en una sola dimensión, mientras que MANOVA tiene el poder de detectar si los grupos difieren en una combinación de dimensiones.
+
+
+Ventajas del análisis multivariante frente al univariante
+
+- Aumento en la potencia
+Se puede utilizar la estructura de covarianza de los datos entre las variables de respuesta para probar la igualdad de medias al mismo tiempo. Si las variables de respuesta están correlacionadas, entonces esta información adicional puede ayudar a detectar diferencias muy pequeñas, las cuales no sería posible detectar mediante la ejecución de análisis ANOVA individuales.
+
+- Detecta patrones de respuestas multivariadas
+El factor puede afectar la relación entre las respuestas en lugar de afectar una respuesta individual. Los análisis de ANOVA no detectarán estos patrones multivariados como mostramos en las figuras.
+
+- Controla la tasa de error por familia
+La probabilidad de rechazar de manera incorrecta la hipótesis nula aumenta con cada ANOVA sucesivo. La ejecución de un solo MANOVA para probar todas las variables de respuesta al mismo tiempo mantiene la tasa de error por familia igual a su nivel alfa.
+
+
+El MANOVA utiliza la prueba F para evaluar la diferencia entre grupos comparando la variabilidad dentro y entre grupos(entre e intra)(o Error). 
+Existen 4 formas distintas del estadístico de contrast, Prueba de Pillai, de Wilk, de Lawley-Hotelling, y de la raíz más grande de Roy. La lambda de Wilks probablemente sea la más utilizada pero recomendamos utilizar la traza de Pillai que suele ser más robusta. 
+
+Por tanto se calcula el P-valor para la estadístico/prueba escogida. Si el P-valor es <0.05 entonces habrían diferencias significativas entre los grupos. Y si hay más de dos grupos deberíamos realizar las pruebas post hoc para saber que grupos muestran diferencias.
+
+Supuestos
+- Normalidad multivariante: Prueba de Mardia o Shapiro multivariante. 
+- Homogeneidad de matrices de varianza-covarianza: Prueba M de Box (igualdad de covarianza o varianza multivariante).
+- Linealidad entre todas las variables respuesta para cada grupo.
+- Independencia de los errores. Muestreo aleatoria completo. Independencia de las observaciones: cada sujeto debe pertenecer a un solo grupo.
+- Ausencia de multicolinealidad. Las variables respuesta no pueden estar demasiado correlacionadas entre sí.
+- Tamaño de muestra adecuado. Regla: n en cada celda > al número de variables respuesta.
+- Ausencia de valores atípicos multivariados. Distancia de Mahalanobis.
+
+Discutimos posibles soluciones ante el incumplimiento de estos supuestos.
+
+
+Procedimiento:
+- Explora los datos
+- Evalúa los supuestos del modelo
+- Ajusta el modelo
+- Realiza pruebas post hoc
+- Visualiza y comunica los resultados (función report)
+
+EJEMPLO VINOS
+
+Paso 1: Exploración de datos
+```{r}
+library(candisc)
+data(Wine)
+summary(Wine)
+```
+
+Analizaremos la variabilidad de la media del alcohol y el color según el tipo de vino.
+
+```{r}
+library(tidyverse)
+library(rstatix)
+Wine %>% group_by(Cultivar) %>% get_summary_stats(Alcohol, Color, type = "mean_sd")
+```
+
+Vemos que hay mayor diferencia en en el color que en el alcohol entre los tipos de vinosç, así como la desviación típica es mayor.
+
+```{r}
+library(ggplot2)
+ggplot(Wine, aes(Alcohol, Color, color=Cultivar)) + geom_point()
+```
+
+Aquí podemos ver que existe una relación positiva entre las variables, y que se aprecia una diferencia entre los tres tipos de vinos. Ya que tenemos dos variables respuesta, podemos realizar un MANOVA para captar las diferencias conjuntas de las dos variables sobre los tipos de vinos.
+
+El siguiente paso es detectar VALORES ATÍPICOS MULTIVARIADOS. Son puntos de datos que tienen una combinación inusual de valores en las variables respuesta. 
+
+Distancia de Mahalanobis: dice qué tan lejos está una observación del centro de la nube, teniendo en cuenta también la forma (covarianza) de la nube.
+
+```{r}
+Wine %>% 
+  select(Alcohol, Color, Cultivar) %>%
+  group_by(Cultivar) %>%
+  mahalanobis_distance() %>%
+  filter(is.outlier == TRUE) %>%
+  as.data.frame()
+```
+
+No detectamos valores atípicos multivariados para estas dos respuestas.
+
+
+Paso 2: Normalidad Multivariante.
+```{r}
+Wine %>% 
+  select(Alcohol, Color) %>% 
+  mshapiro_test()
+```
+
+Los datos no cumplen el supuesto de normalidad multivariada (p<0.001)
+- MANOVA suele ser robusto a la falta de normalidad, pero si necesitas otra solución puedes transformar las respuestas o utilizar la versioón no paramétrica del MANOVA(PERMANOVA).
+
+
+Paso 3: Multicolinealidad
+```{r}
+Wine %>% cor_test(Alcohol, Color)
+```
+
+Para analizar la multicolinealidad realizamos un análisis de correlación. Vemos que no hay una alta correlación entre las variables (0.55), con p<0.0001, según lo evaluado por la correlación de Pearson.
+- En la situación en la que detectes multicolinealidad, podrás considerar eliminar una de las variables respuesta que está altamente correlacionada. 
+
+
+Paso 3: Homogeneidad de varianza-covarianza
+```{r}
+library(heplots)
+boxM(Wine[,c("Alcohol", "Color")],
+     Wine$Cultivar)
+```
+El P-valor<0.001, por tanto rechazamos la hipótesis nula de homogeneidad de covarianza. Los datos no cumplen con el supuesto. 
+- Un diseño equilibrado(con mismas unidades en cada grupo) es más robusto que uno desiquilibrado.
+- Las posibles soluciones incluyen: 1) transformar las variables respuesta; 2) ejecutar la prueba de todos modos, pero usando la estadística multivariante de Pillai en lugar de la estadística de Wilks.
+
+
+Paso 4: ajustar MANOVA
+
+Podemos utilizar dos funciones: 
+- manova(). Para la suma de cuadrados (SS) de tipo I
+- Manova(fir, type="III"). Para SS tipo II (o III). Se recomienda tipo II porque es más robusto para estudios no balanceados. Y nos va a permitir evaluar los supuestos que nosotros queremos independientemente del orden que introduscamos las agrupaciones que queremos estudiar.
+
+El primer paso es introducir el modelo y realizar el MANOVA.
+
+```{r}
+m <- lm(cbind(Alcohol, Color) ~ Cultivar, data=Wine)
+library(car)
+( m0 <- Manova(m, type="II"))
+```
+
+Observamos que el P-valor es significativo, por lo que si que existen diferencias entre algunos de los 3 tipos de vinos para las variables respuestas combinadas Alcohol y Color, en formato APPA: (Pillai=1.0421, F(2, 175) = 95.183, p<0.0001).
+Los grados de libertad (Df) para F se calculan como: num=(K-1), den=(n-K).
+(Recuerda que los datos no cumplen con normalidad ni homogeneidad)
+
+Debemos acudir a la prueba de comparación múltiple post hoc de Hotelling-Lawley para determinar cuál/es es/son.
+
+Si queremos utilizar otro tipo de estadístico para la prueba se puede hacer de la siguiente manera:
+```{r}
+summary(m0)
+```
+
+
+Paso 4: Eta-cuadrado
+
+Para el modelo:
+- Prueba de hipótesis. H0:igualdad de vectores de medias en los grupos.
+Existen 4 tipos, las pruebas que hemos vistos anteriormente, Pillai, Wilk, Lawley, Roy.
+
+- Medidas de asociación parcial (Eta-cuadrado)
+Indica la asociación parcial para cada término en un modelo lineal multivariado.
+En nuestro ejemplo:
+```{r}
+etasq(m)
+```
+
+Este valor nos indica el tamaño del efecto.
+
+
+PASO 4: ANOVA
+
+Para averiguar que variable es significativa en relación a los grupos se puede realizar un ANOVA univariante.
+```{r}
+#group the data by variable
+grouped.data <- Wine %>% 
+  gather(key = "variable", value = "value", Alcohol, Color) %>% 
+  group_by(variable)
+
+#Do welch one way anova test
+grouped.data %>% welch_anova_test(value ~ Cultivar)
+
+#or do Kruskal-Wallis test
+#grouped.data %>% welch_anova_test(value~Cultivar)
+```
+
+Corrección de Welch para problemas de heterogeneidad de varianza.
+Vemos que ambas variables son significativas.
+
+
+PASO 5: Comparaciones múltiples post-hoc
+
+Con las comparaciones múltiples post-hoc evaluamos entre qué grupos hay diferencias multivariantes.
+```{r}
+library(emmeans)
+pairs(emmeans(m, "Cultivar"))
+```
+
+Por tanto observamos que existen diferencias significativas entre todos los tipos de vinos (p<0.001).
+
+También se puede realizar análisis univariantes con:
+- ANOVA de una vía: welch_anova_test() o kruskal_test()
+- Post-hoc: games_howell_test() o pairwise_t_test().
+```{r}
+grouped.data %>%
+  group_by(variable) %>% games_howell_test(value ~ Cultivar) %>% select(-estimate, -conf.low, -conf.high)
+```
+Vemos los mismos resultados.
+
+
+PASO 5: interpretación. Boxplot
+
+Post hoc univariado
+```{r}
+library(ggpubr)
+ggboxplot(grouped.data, x=grouped.data$Cultivar, y=grouped.data$value)
+```
+No sabemos cómo obtener el gráfico que presentan. 
+
+
+PASO 5: Interpretación. Gráfica de Hipótesis-Error (HE)
+
+```{r}
+library(heplots)
+heplot(m, size="effect")
+```
+
+Con este gráfico observamos el Error que estamos analizando y que hay diferencias entre los grupos, grignolino con menos alcohol y color, y barolo y barbera con mayor de estas variables.
+
+
+PASO 5: interpretación. report
+
+```{r}
+library(report)
+m0 <- manova(m)
+report(m0) #solo acepta modelo manova, no Manova
+```
+Nos muestra el modelo manova que estamos analizando, para saber si es el que queremos. 
+Y nos dice que el tamaño del efecto de Cultivar es significativo y grande. No muestra los resultados, y el tamaño del efecto(0.52).
+
+
+PASO 5: interpretación. report
+
+También se puede realizar un report para visualizar cada variable en función de los grupos.
+```{r}
+Wine %>% 
+  select(Alcohol, Color, Cultivar) %>% group_by(Cultivar) %>% 
+  report() %>%
+  summary()
+```
+
+Vemos el número de observaciones por grupo, así como la media y desviación para cada variable y cada grupo.
+
+
+
+ADONIS, PRUEBA NO PARAMÉTRICA
+
+
+El ADONIS (también llamado NP-MANOVA o perMANOVA) es la versión no paramétrica del MANOVA. Utiliza las distancias entre observaciones y pruebas de permutación.
+
+- Calcula la matriz de distancia entre las observaciones
+- Calcula la distanci media de las observaciones (SS total)
+- Calcula la distancia media de las observaciones dentro de cada grupo. (SS within)
+- Calcula la distancia media de los grupos (SS between)
+- Calcula F-ratio (H0-No esxisten diferencia significativas entre grupos) y el p-valor asociado mediante permutaciones Monte Carlo. Si el P-valor asociados es <0.05 entonces hay diferencias significativas y debemos usar pruebas post-hoc.
+
+No requiere que las muestras presenten una distribución normal multivariante, con lo cual permite analizar variables ordinales.
+Utiliza cualquier método de distancia, con lo cual también es flexible ante el incumplimiento de homocedasticidad.
+
+Pasos:
+1. Descriptivo
+2. Elegir el método de de distancia
+3. Calcular el ADONIS (NP.MANOVA o perMANOVA)
+4. Comparaciones múltiples post hoc
+5. Comunicacion
+
+EJEMPLO
+
+Vamos a utilizar los mismos datos Wine.
+
+Paso 1: Exploración de datos
+```{r}
+library(candisc)
+data(Wine)
+summary(Wine)
+```
+
+Analizaremos la variabilidad de la media del alcohol y el color según el tipo de vino.
+
+```{r}
+library(tidyverse)
+library(rstatix)
+Wine %>% group_by(Cultivar) %>% get_summary_stats(Alcohol, Color, type = "mean_sd")
+```
+
+Vemos que hay mayor diferencia en en el color que en el alcohol entre los tipos de vinos, así como la desviación típica es mayor.
+
+```{r}
+library(ggplot2)
+library(ggpubr)
+ggboxplot(Wine, x="Cultivar", y=c("Alcohol", "Color"), merge = TRUE, palette = "jco")
+```
+
+Aquí podemos ver que se aprecia una diferencia entre los tres tipos de vinos, siendo grignolino el que menos alcohol y color tiene. Ya que tenemos dos variables respuesta, podemos realizar un MANOVA para captar las diferencias conjuntas de las dos variables sobre los tipos de vinos.
+
+El siguiente paso sería eralizar las pruebas, pero ya que es robusto no sería realmente necesario.
+
+Paso 2. ADONIS
+
+Para ajustar el modelo utilizamos la función adonis2() del paquete vegan. Debemos indicar la matriz de distancias para los datos.
+
+```{r}
+library(vegan)
+adonis2(formula,             # responses ~ groups
+        data,                # el objeto donde se encuentran las variables
+        permutations = 999,  # número de permutaciones 
+        method = "bray",     # método de distancias
+        by = "margin",       # análisis marginal (no importa el orden de los términos)
+```
+
+El número de permutaciones por defecto es 999.
+El método de distancias por defecto es el de bray, aunque se puede establecer el euclideo
+Y el término por el cuál se desea evaluar. Al igual que en el MANOVA se puede evaluar más de un tipo de agrupación o incluso una interacción entre distintos tipos de agrupación. Por ejemplo, grupo de tratamiento y grupo de dosis de tratamiento
+
+El método de Bray se basa en el rango de los valores,es un índice de disimilitud.
+- Fácil de interpretar (0 = muestras iguales; 1 = máxima diferencia).
+- Tiene en cuenta diferencias absulutas y relativas.
+- Más información sobre distancias.
+
+Ejemplo (euclidea)
+
+```{r}
+adonis2(Wine[,c("Alcohol", "Color")] ~ Wine$Cultivar,
+        Wine,                # el objeto donde se encuentran las variables
+        permutations = 999,  # número de permutaciones 
+        method = "euclidean",     # método de distancias
+        by = "margin")  # análisis marginal (no importa el orden de los términos)
+```
+En cuanto a "margin" o marginal lo que le estamos diciendo es que si tuvieramos más de un factor nos daría igual el orden en el que ha sido ingresado ese factor.
+
+En cuanto a los resultados, nos dice que es un test de permutación , que hay 999 permutaciones, la fórmula... pero lo que nos interesa es que la variable de agrupación "cultivar" obtiene un R2 de 0.58, y un p-valor de 0.001, lo cual nos indica que es significativo. Por lo que si existen diferencias significativas entre los grupos para alcohol y color.
+
+
+Paso 3. Comparaciones Post-Hoc
+
+Si el resultado anterior es significativo, necesitarás utilizar pruebas de comparación múltiple post hoc para detectar qué grupos difieren entre sí.
+
+```{r}
+library(RVaideMemoire)
+pairwise.perm.manova(resp,               # matriz de distancias
+                     fact,               # grupos 
+                     test ="Pillai",     # estadístico a utilizar
+                     nperm = 999,        # número de permutaciones
+                     p.method = "fdr",)   # ajuste del p-valor, ?p.adjust
+```
+
+Para el cálculo de las distancias puedes utilizar la función dist() o vegdist() del paquete vegan.
+
+```{r}
+library(RVAideMemoire)
+pairwise.perm.manova(dist(Wine[c("Alcohol", "Color")]), 
+                     Wine$Cultivar,
+                     progress = F)
+```
+Vemos que hay diferencias significativas entre todos los grupos (p-valor=0.001)
+
+
+Paso 4. Interpretación 
+
+Para ello podemos incluir el gráfico de cajas utilizado anteriormente incluyendo los resultados en formato APA.
+
+
+```{r}
+# box plots con p-valores
+pwc <- pwc %>% add_xy_position(x = "Cultivar")
+test.label <- create_test_label(
+  description = "MANOVA", statistic.text = quote(italic("F")),
+  statistic = 122, p= "<0.0001", parameter = "4,294",
+  type = "expression", detailed = TRUE
+)
+library(ggpubr)
+ggboxplot(
+  Wine, x = "Cultivar", y = c("Alcohol", "Color"), 
+  merge = TRUE, palette = "jco"
+) + 
+  stat_pvalue_manual(
+    pwc, hide.ns = TRUE, tip.length = 0, 
+    step.increase = 0.1, step.group.by = "variables",
+    color = "variables"
+  ) +
+  labs(
+    subtitle = test.label,
+    caption = get_pwc_label(pwc, type = "expression")
+  )
+```
+

@@ -1,0 +1,222 @@
+---
+title: "CLUSTER JERARQUICO"
+author: "Daniel Barandiarán"
+date: '2022-04-14'
+output: html_document
+---
+
+El análisis cluster jerárquico (hierarchical clustering, HC) permite agrupar las observaciones en función de su similitud y obtener la estructura de asociación en cadena de las observaciones (llamado dendrograma).Esto permite elegir cualquier número de grupos cortando el árbol al nivel correcto.
+
+En este curso utilizaremos la agrupación aglomerativa (Agglomerative Nesting o AGNES) parte de tantos grupos como individuos y se van agrupando hasta llegar a tener a todos los individuos en un solo grupo. También llamada aproximación “bottom-up” o ascendente. 
+
+Aquí hay algunos detalles a tener en cuenta:
+- Genera una jerarquía de agrupación (dendrograma).
+- Si hay muchas observaciones puede ser difícil de interpretar.
+- Puede consumir mucho tiempo. Alternativas: BIRCH,CURE, y CHAMALEON.
+- No requiere especificar número de grupos.
+- Es más determinístico.
+- No requiere iteración.
+- Existen 2 algoritmos: aglomerativo o divisivo.
+- Utiliza una matriz de distancias de cualquier tipo.
+- Utiliza un único método de vinculación.
+
+
+Métodos de vinculación entre grupos:
+
+- Método de distancia completa "Complete": también llamado de distancia máxima o de VECINO MÁS LEJANO. Utiliza la distancia máxima (del cluster) y une dos grupos para formar uno con el menor diámetro. Crea grupos compactos, no captura comportamientos locales y es sensible a valores atípicos.
+- Método de distancia única "Single": también llamado de distancia mínima o VECINO MÁS CERCANO. Captura comportamientos locales, pero ignora la estructura completa, con lo cual es sensible a valores atípicos y al ruido.
+- Método de distancia promedio "UPGMA": utiliza la distancia promedio de los puntos de un cluster.
+- Método de distancia al centroide "Centroide": utiliza la distancia al centroide, pueden ser difíciles de interpretar.
+- Método de Ward: es un método de agrupación de varianza mínima que crea grupos compactos y de tamaño uniforme.
+
+El método WARD y el COMPLETO son preferible cuando se quiere que los grupos sean homogeneos, y aproximadamente del mismo tamaño.
+El método SINGLE encuentra de árbol de mínima expansión (el árbol más corto que conecta los puntos), pero puede generar grupos con tamaños desigual.
+
+EXTRA: ¿Qué método de vinculación es mejor?
+Si deseas evaluar cuál de los métodos se adapta mejor a tus datos, puedes cacular la correlación cofenética o la distancia de Gower.
+
+- Correlación cofenética: 
+Evalúa qué tan bien el cluster preserva las distancias originales entre cada par de observaciones.
+Mide la correlación entre las distancias originales y las distancias estimadas a partir del árbol de agrupación.
+[-1, 1], 0=representación no adecuada.
+Mayor correlación -> Mejor representación.
+Ejemplo en R: Utiliza la función cophenetic()
+```{r}
+# datos originales
+x <- data.frame(X=c(1,0,3),Y=c(2,0,0), row.names=c("A","B","C"))
+# agrupación con el método de vinculación elegido
+x_hc <- hclust(dist(x), method="complete")
+# distancias cofenéticas
+cof1 <- cophenetic(x_hc)
+# correlación entre las distancias originales y las distancias cofenética 
+cor(dist(x),cof1)
+```
+
+
+- Distancia de Gower
+Misma idea de fondo: comparar las distancias originales con las distancias del árbol para ver qué tan bien se adecúa el árbol a la relación original.
+Pero le da más importancia a los casos donde las medidas de distancia original y cofenética son diferentes.
+Calcula la suma cuadrática de las diferencias entre las distancias de los datos originales y las distancias cofenéticas.
+[0, 1], 0=representación adecuada.
+Menor distancia -> Mejor representación.
+Ejemplo en R: compara las distancias originales con las distancias cofenéticas
+
+```{r}
+sum((dist(x)-cof1)^2)
+```
+
+Ejemplo.
+Para crear el cluster:
+
+hclust(𝑑, 𝑚𝑒𝑡h𝑜𝑑 = "𝑐𝑜𝑚𝑝𝑙𝑒𝑡𝑒")
+
+```{r}
+mtcars_std <- scale(mtcars[c("hp", "mpg")])
+mtcars_dist <- dist(mtcars_std)
+mtcars_hc <- hclust(mtcars_dist, method="complete") #método completo (vecinos lejanos)
+```
+
+Otras opciones para especificar el método de agrupación:
+
+ "𝑤𝑎𝑟𝑑.𝐷2" para el método de varianza mínima,
+ "𝑠𝑖𝑛𝑔𝑙𝑒" para el método de distancia mínima,
+ "𝑐𝑜𝑚𝑝𝑙𝑒𝑡𝑒" para el método de distancia máxima,
+ "𝑎𝑣𝑒𝑟𝑎𝑔𝑒" para el método de distancia promedio (= UPGMA), 
+ "𝑐𝑒𝑛𝑡𝑟𝑜𝑖𝑑" para el método de distancia al centroide.
+Existe alguna otra opción pero de menor importancia.
+
+Para graficar el resultado (dendrograma) utiliza la función plot().
+```{r}
+par(cex=0.5, mar=c(5,8,4,1)) #para modificar el tamaño y los márgenes
+plot(mtcars_hc, axes = FALSE) #axes para quitar o poner los ejes
+```
+
+
+¿Cómo elegir el número final de grupos? 
+
+Para construir los grupos debemos "cortar" el árbol (dendrograma) según altura. O podemos elegir el número de grupos de forma arbitraria.
+
+Para cortar en k=2
+```{r}
+library(factoextra)
+fviz_dend(mtcars_hc, k=2, cex=0.5, rect=TRUE) #rect para marcar con cuadros a puntos
+```
+
+Para cortar en k=3
+```{r}
+fviz_dend(mtcars_hc, k=3, cex=0.5, rect=TRUE) #rect para marcar con cuadros a puntos
+```
+
+Podemos obtener la agrupación de forma no gráfica.
+```{r}
+grupos <- cutree(mtcars_hc, k=3)
+grupos
+```
+Nos muestra a que grupo pertenece cada coche.
+
+Podemos añadir la etiqueta/variable de a que grupo pertenece dentro de los datos.
+```{r}
+mtcars$grupos <- as.factor(grupos)
+head(mtcars[c("hp", "mpg", "grupos")])
+```
+
+Graficar la agrupación junto con las variables.
+
+```{r}
+library(ggrepel)
+ggplot(mtcars[c("hp", "mpg", "grupos")], aes(hp, mpg, color=grupos, label=rownames(mtcars))) + geom_text_repel(size=3) #repel para que no se solapne las etiquetas
+```
+
+Se pueden explorar las caracterísitcas de cada cluster, por ejemplo la cantidad de componenetes o la media de cada cluster en funcion de cada variable.
+```{r}
+table(mtcars$grupos)
+```
+```{r}
+by(mtcars[c("mpg", "hp")], mtcars$grupos, colMeans)
+```
+
+REPRESENTACION E INTERPRETACIÓN
+
+Queremos realizar agrupaciones de coches según los caballos, el consumo y el peso.
+```{r}
+mtcars_std <- as.data.frame(scale(mtcars[,c("hp", "mpg", "wt")]))
+mtcars_hc <- hclust(dist(mtcars_std), method = "ward.D2")
+grupos <- cutree(mtcars_hc, k=4)
+table(grupos)
+```
+Vemos en un gráfico.
+```{r}
+library(factoextra)
+fviz_dend(mtcars_hc, k=4, cex = .2, horiz = T)
+```
+
+Vemos que los grupos azul y morado son los más similares mientras que el rojo es el más distinto.
+
+Podemos ver tmabién un dendrograma circular, más usado en ambito genético.
+```{r}
+fviz_dend(mtcars_hc, k=4, cex = .3, type="circular", color_labels_by_k = T)
+```
+
+Endrograma estilo filogenia
+```{r}
+library(igraph)
+fviz_dend(mtcars_hc, k=4, cex = .3, type="phylogenic", color_labels_by_k = T, repel=T)
+```
+
+
+Resumen por grupo. para obtener la media o la desviación típica de cada variable por grupos.
+```{r}
+aggregate(mtcars[,c("hp", "mpg", "wt")], list(grupos), mean)
+```
+```{r}
+aggregate(mtcars[,c("hp", "mpg", "wt")], list(grupos), sd)
+```
+
+En nuestro caso queremos valores sin escalar, para interpretarlos mejor.
+Vemos los resultados con las diferencias entre cada grupo y variables.
+
+Para combinar un dendrograma con los valores de las variables podemos usar un mapa de calor. Se pude hacer de varias maneras pero con la función pheatmap de la librería con el mismo nombre nos permite personalizarlo y es muy útil.
+```{r}
+library(pheatmap)
+pheatmap(mtcars_std, cluster_cols = FALSE, scale = "none", cutree_rows = 4, fontsize = 8, clustering_distance_cols = "euclidean", clustering_method = "ward.D2")
+```
+
+En el gráfico vemos los grupos separados y en qué variables son las que más destacan o más similares son entre sí.
+
+Otra forma de representar los cluster es mediante un gráfico de dispersión. De este modo podemos graficar de forma bidimensional los cluster en función de dos variables.
+```{r}
+fviz_cluster(list(data=mtcars_std, cluster=grupos), choose.vars = c("hp", "wt"), labelsize = 8, repel = TRUE)
+```
+
+Para obtener el gráfico de dispersión para las tres variables que estábamos estudiando podemos utilizar el gráfico de análisis de componentes principales (PCA) más cluster.
+```{r}
+library(factoextra)
+fviz_cluster(list(data=mtcars_std, cluster=grupos), labelsize = 8, repel = TRUE)
+```
+
+Las tres variables se combinan en dos nuevas dimensiones. Vemos que la dimensión 1 es la más importante.
+
+Por último podemos realizar un gráfico radar, o circulares. Nos permiten identicar los grupos más equilibrados en relación a las variables de estudio.
+Aqui las variables se escalan en un rango de 0 a 100 para visualizarlos de forma conjunta.
+```{r}
+df <- as.data.frame(mtcars_std)+2 #cambio de escala
+df <- aggregate(df, list(grupos), mean) #media
+colnames(df)[1] <-"group"
+#devtools::install_github("xl0418/ggradar2",dependencies=TRUE)
+library(ggradar2)
+ggradar2(df)
+```
+
+Vemos que el 1 es el más equilibrado, vemos que los vértices de este grupo se encuentran básicamente al 50%, mientra que los grupos 3 y 4 destacan en alguna de las variables.
+
+Recuerda que los resultados del análisis cluster depende de las decisiones tomadas previamente, como la preparación de los datos, la medida de distancia, el método de agrupación utilizado, y el número de grupos seleccionados. Revisando todos estos con los resultados esperados y usando técinas de validación de agrupación para obtener los mejores resultados
+
+
+
+
+
+
+
+
+
+

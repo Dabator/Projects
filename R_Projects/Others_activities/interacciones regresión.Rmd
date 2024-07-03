@@ -1,0 +1,147 @@
+---
+title: "interacciones regresión múltiple"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+dat <- read.csv("https://stats.idre.ucla.edu/wp-content/uploads/2019/03/exercise.csv")
+```
+
+```{r}
+summary(dat)
+str(dat)
+```
+```{r}
+dat$gender <- factor(dat$gender, labels=c("male", "female"))
+dat$prog <- factor(dat$prog, labels=c("jog", "swim", "read"))
+str(dat)
+```
+
+```{r}
+library(GGally)
+ggpairs(dat[, -1], progress = FALSE)
+```
+```{r}
+library(ggplot2)
+dat %>% ggplot(aes(x=hours, y=loss))+geom_point()+geom_smooth(method="lm")+theme_minimal()
+```
+Podemos hacer predicciones con la función predict. En este caso usaremos un modelo con unicamente la variable hours como única variable independiente.
+```{r}
+cont <- lm(loss ~ hours, data=dat)
+predict(cont, newdata = list(hours=2), interval="confidence")
+```
+Encontramos que la pérdida de peso para dos horas de ejercicio corresponde a 10, con un intervalo de confianza del 95% entre 9 y 10,9
+
+De otro modo, podemos averiguar esto con la función emmeans
+```{r}
+library(emmeans)
+emmeans(cont, ~hours, at=list(hours=2))
+```
+Por otro lado, vamos a averiguar el valor de la pendiente de la variable hours a través de la función emtrends
+```{r}
+emtrends(cont, ~1, var="hours")
+```
+nos encontramos que la pendiente es 2,47
+
+
+Empezamos con las interacciones (continua X continua)
+
+```{r}
+contcont <- lm(loss ~ hours*effort, data=dat)
+summary(contcont)
+```
+la interpretación de la pendiente b3 (hours:effort) vendría a ser ?
+
+Ahora graficaremos una interaccion con la funcion interact_plot de la librería interactions
+```{r}
+library(interactions)
+interact_plot(contcont, pred="hours", modx="effort", plot.points=T, interval=T)
+```
+aqui vemos una gráfica con tres lineas de regresión para cada uno de los valores de effort, La media, la media más la desviacion tipica, y la media menos la dt.
+
+Podemos saber los valores de las pendientes e interceptos que hemos observado y evaluar si son significativamente distintos de 0
+```{r}
+library(sandwich)
+sim_slopes(contcont, pred="hours",modx="effort", cond.int=TRUE)
+```
+
+INTERACION CONTINUA X CATEGORICA
+
+```{r}
+contrasts(dat$gender)
+```
+Aquí vemos que el valor de referencia es male, debido a que R toma el menor valor como referencia. Por lo que male=0 y female=1. 
+Para cambiar el valor de referencia usamos el siguiente código:
+*dat$gender <- relevel(dat$gender, ref="female")*
+
+```{r}
+concat <- lm(loss~hours*gender, data=dat)
+summary(concat)
+```
+El término más difícil de interpretar es la interacción. Una forma de pensar es si conocemos la pendiente de las horas de las hombress, esta otra es la pendiente adicional para mujeres. Es decir, si b1 es la pendiente de las horas de las hombres, b1+b3 es la pendiente de las horas de los mujeres.
+
+```{r}
+interact_plot(concat, pred=hours, modx=gender, plot.points=T, interval=T)
+```
+según los comentarios la pendiente de las horas pentre hombres y mujeres no es diferente.El error estándar del coeficiente de interacción es grande en relación con el valor absolutodel coeficiente.
+
+Para estimar las pendientes simplepor cada nivel del moderador categórico podemos usar la función sim_slopes
+
+```{r}
+sim_slopes(concat, pred=hours, modx=gender)
+```
+aqui vemos que la estimación de la pendiente para hombres coincide con b1. Mientras que la de las mujeres es la suma de b1+b3. El intervalo de confianza del 95% no contiene 0 para las mujeres, pero si en los hombres, por lo que la pendiente simple es significativa para las mujeres pero no para hombres.
+Un error comun es pensar que si la pendiente simple de horas para mujeres es significativa pero en hombres no debería existir una interacción, sin embargo, la interacción prueba que existe una diferencia de la pendiente de las horas para hombres y mujeres, y no si cada pendiente simple es distinto de 0.
+
+INTERACCION CATEGORICA X CATEGORICA
+
+Veamos ahora si el tipo de ejercicio influye en la perdida de peso segun el genero.
+En primer lugar, asignamos los grupos de referencia.
+```{r}
+dat$prog <- relevel(dat$prog, ref = "read")
+dat$gender <- relevel(dat$gender, ref="female")
+contrasts(dat$prog)
+```
+
+Ajustamos el modelo lineal. 
+```{r}
+catcat <- lm(loss~gender*prog, data=dat)
+summary(catcat)
+```
+El modelo se puede escribir así:
+b0 + b1*Dmale + b2*Djog + b3*Dswim + b4*(DmaleXjog) + b5*(DmaleXswim)
+
+b0 seria la perdida de peso para una mujer que lee. 
+b1 la diferencia de perdida de peso entre hombres y mujeres cuando leen.
+b2 la diferencia de perdida de peso de mujeres cuando leen y cuando trotan.
+b3 la diferencia de perdida de peso de mujeres cuando leen y cuando nadan.
+b4 el efecto hombre en la condicion de trote versus el efecto hombre en la condición de lectura (cuando male=1 y Jog cambia), O el efecto trote cuando es hombre versus el efecto trote cuando es mujer. (al revés)
+b5 igual que b4 pero con nadar.
+Podemos pensar en b4 como el efecto masculino adicional de pasar de leer a trotar. Y b5 como el efecto masculino de pasar de leer a nadar.
+
+```{r}
+library(ggplot2)
+library(interactions)
+cat_plot(catcat,pred="gender", modx="prog", geom="line")
+```
+
+cada punto es un valor predicho y cada linea es un efecto simple. El tipo de ejercicio es el moderados del efecto género.
+
+con la función de emmeans, anteriormente calculabamos valores concretos de las variables continuas, ahora nos calculará todas las combinaciones posibles dado que solo hay factores. 
+
+```{r}
+library(emmeans)
+emcatcat <- emmeans(catcat, ~gender*prog)
+emcatcat
+```
+Estos son los valores predichos de pérdida de peso para todas las combinaciones de género y ejercicio.
+Para comprender la interacción necesitamos obtener los efectos simples que son las diferencias de los valores predichos. Esto se puede lograr usando la función contrast() como parte de emmeans.
+
+```{r}
+contrast(emcatcat, "revpairwise", by="prog", adjust="none")
+```
+Utilizamos revpairwise en lugar de pairwise porque, por defecto, el grupo de referencia (femenino) vendría primero.Lo realizamos sin ajuste del P-valo (aunque a veces es conveniente para protegerse del error tipo I, aceptar o rechazar erroneamente la hipotesis nula). Por último vemos que la mayor interacción ocurre en trote y en nadar, los cuales son significativos. En trote es positivo y en nadar negativo.
+
+la interacción se basa en la diferencia de la diferencia, es decir, no es casualidad que si restamos la diferencia entre hombre y mujer de nadar frente a la diferencia de hombre y mujere de leer (-6,26), es igual al intercepto de hombre y nadar, es decir b5.

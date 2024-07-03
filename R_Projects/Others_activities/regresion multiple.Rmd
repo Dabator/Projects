@@ -1,0 +1,218 @@
+---
+title: "regresino lineal multiple"
+author: "Daniel Barandiarán"
+date: "22 de diciembre de 2021"
+output: html_document
+---
+```{r}
+install.packages("relaimpo")
+```
+
+```{r}
+library(datarium)
+data(marketing)
+```
+
+```{r}
+library(plot3D)
+scatter3D(x=marketing$youtube, y=marketing$facebook, z=marketing$sales, colvar=marketing$newspaper)
+```
+gráfico 3D con varias variables.
+
+```{r}
+model_all <- lm(sales~youtube + facebook + newspaper, data=marketing)
+summary(model_all)
+```
+
+```{r}
+sigma(model_all)*100/mean(marketing$sales)
+```
+El error esta vez es de 12,02% yel coeficiente R^2 es igual a 89,56% (usamos el ajustado ya que penaliza el aumento de variables).
+
+```{r}
+library(rsq)
+rsq.partial(model_all)
+```
+R^2youtube 84,6%
+R^2face    71%
+R^2news    0,01%
+
+Por otro lado, comprobaremos la prueba F global:
+H0. ningun predictor contribuye a explicar la respuesta (B1=B2=B3=0)
+H1 al menos uno de ellos contribuye a explicar (algún Bj b=/0)
+Para un nivel de 95% si P es menor de 0,05 entonces rechazamos H0
+
+Vemos que newspaper no es significativo en el modelo, por ello hay que plantear si eliminarla, con tecnicas de comparacion de modelos.
+
+```{r}
+confint(model_all)
+```
+estos son los intervalos de confianza que pueden tener los valores de los coeficientes. medido a partir del error estándar
+
+Para estar seguros de eliminar la variable no significativa debemos compara el modelo con y sin él, debido a que la significacion de la pureba t depende del resto de predictores.
+Aquí vemos 3 métodos para la comparación y seleccion de modelos.
+pero antes plantearnos por qué molestarse en seleccionar predictores: 
+- Simplificar (el modelo más reducido, con menos predictores pero más significativos, es el mejor para explicar) principio de la Navaja de Occam
+- Evitar ruido (los predictores innecesarios agregaran ruido en las estimaciones, se desperdiciarán entonces grados de libertad)
+- Colinealidad (correlacion entre predictores, causando sesgos con sobreajuste)
+- costo (podemos ahorrar costo y tiempo.)
+
+Dos enfoques
+- Comparación con la prueba F parcial
+- Maximizar alguna medida de bondad de ajuste (AIC, BIC, CP)
+Mediante selección automática o semi-automática de variables.
+
+COMPARACION PRUEBA F. Compararemos dos modelos, uno con y otro reducido sin la variable newspaper
+```{r}
+model_red <- lm(sales~youtube + facebook, data=marketing)
+summary(model_red)
+```
+
+```{r}
+anova(model_all, model_red)
+```
+H0 Bi=0 | Bjs=/0 modelo reducido (coeficiente news vale 0, manteniendo el resto distinto de 0)
+H1 Bi=/0 | Bjs=/0 modelo completo (coeficiente news vale distinto de 0, manteniendo el resto distinto de 0)
+
+Como p>0,05 no rechazo H0, el predictor NO contribuye significativamente
+
+CRITERIO DE INFORMACION DE AKAIKE (AIC)
+- Considera la bondad de ajuste y su complejidad
+- Mide la cantidad de información perdida al no representar la respuesta de forma exacta
+- A menor AIC, mejor modelo (ya que pierde menos información (2 puntos de diferencia es importante)
+- AICc (corregido), cuando la muestra es de pequeño tamaño
+
+```{r}
+AIC(model_all, model_red)
+```
+
+La diferencia del AIC entre ellos es de prácticamente 2 puntos. Por lo tanto, nos quedamos con el modelo  que ofrece menos valor de AIC, más sencillo, model_red. 
+
+Estas dos tecnicas nos han dado el mismo resultado. Pero solo en base a una variable. Pero no hemos analizado todo el conjunto por separado o subconjuntos.
+
+Si queremos seleccionar las variables podemos hacerlo de dos maneras.
+
+- Seleccion por pasos 
+ - Automático. Agrega/elemina predictores paso a paso
+ - El resultado final es un modelo único, el que mejor se ajuste
+ 
+- Selección por subconjuntos
+ - Semi-automático. compara todos los modelos posibles
+ - El resutado final es una serie de modelos distintos y sus estadísiticos de ajuste.
+ 
+ Por pasos
+```{r}
+library(MASS)
+step.model <- stepAIC(model_all, direction = "backward", trace = FALSE)
+#seleccionamos el método por pasos con AIC (stepAIC), dirección backward (comienza con todos y va eliminando segun sea mejor opción, backward es el mejor)
+summary(step.model)
+```
+ Aqui observamos que de nuevose ha escogido las variables youtube y facebook, rechazando newspaper
+ 
+ Por subconjuntos
+```{r}
+library(leaps)
+subsets <- regsubsets(as.matrix(marketing[,-4]),marketing[,"sales"],
+                      nbest=1,
+                      nvmax=NULL,
+                      method="backward")
+summary(subsets)
+```
+En esta técnica nos muestra que variables son las adecuadas para cada grupo: para una variable, youtube; para dos variables, youtube y facebook; y para tres variables, todas.
+Pero con qué grupo nos quedamos?
+```{r}
+summary(subsets)$bic #mediante criterio BIC
+```
+Estos resultados nos muestran valores, en orden, del primer grupo, segundo y trecer, con una, dos y tres variables respectivamente.
+Debemos escoger el que menor valor tenga, en este caso el segundo, con las variables youtube y facebook.
+
+
+MULTICOLINEALIDAD
+
+```{r}
+data(marketing, package = "datarium")
+attach(marketing)
+model <-lm(sales~youtube+facebook+newspaper)
+```
+```{r}
+library(car)
+vif(model)
+```
+Si los valores siguientes son superiores a 5 entonces existe un problema de multicolinealidad, un exceso de correlación entre variables. la solución es eliminar la variable o realizar PCA (analisis de componentes principales).
+
+El siguiente paso, cuando ya tenemos escogidos los predictores, es hallar la contribución media al R^2, es decir, el porcentaje de contribución al modelo.
+```{r}
+library(relaimpo)
+crlm <- calc.relimp(model, type = c("lmg"), rela = TRUE) #método lmg
+crlm
+```
+la suma de las importancias da el 100%. 
+
+```{r}
+data("Salaries", package="carData")
+head(Salaries)
+```
+```{r}
+summary(Salaries)
+```
+
+```{r}
+contrasts(Salaries$sex)
+```
+Aqui vemos cómo se realiza la codificación de la variable a partir del programa. Ahora mismo la referencia es el valor "Female" y la categoría de base es "Male. se crea una variable indicadora llamada SexMale donde 0 es "F" y 1 "M".
+
+Para cambiar la categoría base se hace de la siguiente manera
+```{r}
+Salaries$sex2 <- relevel(Salaries$sex, ref = "Male")
+contrasts(Salaries$sex2)
+```
+
+```{r}
+model_sex <- lm(salary~sex, data = Salaries)
+summary(model_sex)$coef
+```
+En este caso, vemos que cuando la variable toma el valor 1, o sea hombre, se incrementa el salario 14088. 
+
+```{r}
+library(emmeans)
+emmeans(model_sex, "sex")
+```
+Aqui vemos que el valor medio que toma el modelo cuando es mujer es 101002, pero cuando es hombre es 115090.
+
+```{r}
+summary(model_sex)
+```
+Aquí como la variable sex solo puede tomar 1 o 0, el t valor lo que mide es si la diferencia entre un valor y otro es significativo, es decir si es diftinto de 0 de forma notable.
+Vemos que el modelo final es significativo, por lo que debemos confiar en la variable sex, aunque el valor de R2 sea muy bajo.
+
+Podemos considerar dos tipos de efectos de los predictores sobre la respuesta:
+- Efectos Principales: el efecto de un predictor sobre la respuesta es INDEPENDIENTE del resto de predictores.
+- Efectos de Interacción: el efecto de un predictor sobre la respuesta DEPENDE de los diferentes valores del otro predictor.
+```{r}
+data("marketing", package="datarium")
+model <- lm(sales~youtube*facebook, data=marketing)
+summary(model)
+```
+En el modelo ponemos un * en lugar de un + para ver la interacción entre las dos variables, que se refleja como b3+youtube+facebook, es decir lo que aumenta (b3) youtube cuando aumenta en una unidad facebook, o viceversa.
+
+Se puede centrar los predictores (restar a cada valor la media) para no obtener resultados engañosos:
+- En casos de multicolinealidad
+- Redefinir el cero de la regresión
+
+Comprobamos en el nuevo modelo con interacción
+```{r}
+library(car)
+vif(model)
+```
+Vemos que tenemos problema de multicolinealidad ya que el valor vif de facebook es superior a 5
+
+Ahora probemos con los valores centrados a la media
+```{r}
+youtube2 <- scale(marketing$youtube, center=TRUE, scale=FALSE)
+facebook2 <- scale(marketing$facebook, center=TRUE, scale=FALSE)
+model2 <- lm(marketing$sales ~ youtube2*facebook2)
+```
+```{r}
+vif(model2)
+```
+Aqui vemos que ya se ha solucionado el problema de multicolinealidad.

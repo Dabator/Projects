@@ -1,0 +1,259 @@
+---
+title: "Analisis de escalamiento"
+author: "Daniel Barandiarán"
+date: '2022-07-08'
+output: html_document
+---
+
+Resumen de la lección
+
+El escalamiento multidimensional es otro método de ordenación y reducción de la dimensión para datos multivariantes. La gran ventaja de este método es que utiliza distancias (puntuaciones de proximidad), lo cual lo hace menos sensible a los efectos de las transformaciones y lo hace más flexible porque acepta una variedad de tipos de datos (a diferencia del PCA).
+
+El objetivo es escalar cada objeto en un espacio de menor dimensión de tal manera que las distancias entre los puntos en el espacio coincidan lo mejor posible con las diferencias observadas en la matriz de datos.    
+
+Según las características de la función de ajuste que se emplee para minimizar las diferencias entre las proximidades de la matriz inicial y las distancias de la solución, tenemos 2 tipos de escalamiento:   métrico (MDS) o no métrico (NMDS).
+
+
+INTRODUCCIÓN AL ANÁLISIS DE ESCALAMIENTO MULTIDIMENSIONAL
+
+El Escalamiento Multidimensional es un tipo de análisis indirecto de gradiente (exploratorio) que permite reducir la dimensión y ordenar un conjunto de datos. Los objetivos por tanto son:
+- Reducir y ordenar un conjunto de datos en un gráfico 2D.
+- Análisis exploratorio. Descubrir estructuras/patrones en datos multidimensionales.
+
+Su gran ventaja es que permite utilizar cualquier tipo de medida de distancia (o similitud), ya sea lineal (MDS) o no lineal (NMDS). A diferencia del PCA que utiliza la distancia euclídea y solo puede ser en base a una relación lineal, o el CA que utiliza la distancia Chicuadrado para relaciones no lineales.
+
+Para encontrar la representación óptima se emplea un proceso iterativo (por pasos) que minimiza al función de estrés (stress o error).
+Estrés: representa la diferencia entre las distancias del espacio reducido y las del espacio completo.
+- Busca optimizar una función de ajuste de manera iterativa.
+
+Las distancias son, en un sentido más amplio, puntuaciones de proximidad.    Objetos similares -> Menor distancia
+Se pueden utilizar distancias euclidianas o de otro tipo.
+Partimos de una matriz de datos, se calculan las distancias, y con la matriz de proximidad se representa en un gráfico 2D de menor dimensión a través de un método de escalamiento (como MDS).
+
+Existen 2 tipos de escalamiento:
+
+Métrico (MDS o PCoA):
+- Asume una relación lineal
+- Análisis propio, solución única.
+- Utiliza las distancias originales.
+
+No métrico (NMDS):
+- Cualquier tipo de relación, incluso no lineal.
+- Aproximación iterativa, solución no única.
+- Utiliza rangos de distancias.
+
+Como ejemplos de aplicación:
+- Valoraciones de perfiles de personas
+- Parecidos entre objetos
+- % de acuerdo entre juicios 
+- Número de veces que un sujeto falla en identificar estímulos
+- Percepción de las diferentes marcas o productos
+
+
+
+ESCALAMIENTO MULTIDIMENSIONAL MÉTTRICO (MDS)
+
+
+Para optimizar (minimizar) el estrés, utilizaremos el algoritmo SMACOF (Scaling by MAyorizing a COmplicated Function).
+
+El paquete smacof proporciona una amplia variedad de tipos de Escalamiento multidimensional.
+```{r}
+library(smacof)
+```
+
+plantilla
+```{r}
+mds(delta,
+    ndim=2,
+    type=c("ratio", "interval", "ordinal", "mspline"), ...)
+```
+- delta es el objeto dist o matriz de disimilitud. Aquí, las distancias se pueden considerar como valores de disimilitud.
+- ndim permite indicar el número de dimensiones de la configuración final. Por defecto es 2.
+- type es el tipo de función de transformación. "ratio"
+ para MDS y "ordinal" para NMDS
+ 
+ 
+Comencemos por un ejemplo sencillo de distancias geográficas entre departamentos franceses para comprender cómo el escalamiento multidimensional realiza la configuración espacial de los objetos de análisis.
+
+```{r}
+data("Guerry")
+Guerry[1:5, 1:5]
+```
+Los datos son una matriz de distancia geográfica. 
+
+
+Ajuste del modelo de escalado
+
+```{r}
+(fit_guerry <- mds(delta = Guerry, ndim=2, type = "ratio") )
+```
+- Symmetric SMACOF. Es la versión MDS-SMACOF más simple. Resuelve la función objetivo de error (aquí llamado estrés) para una matriz de disimilitudes simétrica mediante el método de mayorización (SMACOF).
+- Number of objects: dimensión de la matriz (86).
+- Stress-1 (normalizado). Mide la bondad de ajuste como una función de pérdida/error. En este caso nos da 0, lo que quiere decir que es un valor muy bueno. también cabia esperar una cifra así ya que se trata de distancias geográficas, por lo que es muy facil su representación.
+- Number of iterations. Cuántas iteraciones fueron necesarias para minimizar el índice Stress-1. Se da una iteracción debido a lo que hemos dicho anteriormente.
+
+Este es un ejemplo muy sencillo, la idea es poder utilizar esto en otros planteamientos. No obstante observemos el gráfico.
+```{r}
+plot(fit_guerry, label.conf =list(cex=0.3))
+```
+
+Si nos fijamos obtenemos el mapa de Francia, pero en espejo (boca abajo). Esto es un detalle a tener en cuenta, ya que la representación que se da no tiene por qué ser la original si no que se puede mostrar como en espejo por ejemplo, pero la representación está bien hecha.
+
+
+
+
+CREACIÓN DE MATRICES DE DISTANCIA E INTERPRETACIÓN DEL ESCCALAMIENTO MULTIDIMENSIONAL.
+
+
+Veamos ahora un ejemplo más realista, donde previamente tenemos que construir la matriz de distancias (o proximidad) para múltiples variables y queremos interpretar la configuración espacial de la solución.
+
+Tenemos datos socioeconómicos y de fecundidad de 47 provincias suizas, pero no su distribución geográfica.
+```{r}
+data("swiss")
+head(swiss)
+```
+
+Vemos que tenemos las variables socioeconómicas y de fecundidad en las columnas, y las provincias en las filas. 
+
+Como no comparten la misma escala debemos escalarlos para realizar la matriz de distancias.
+```{r}
+swiss_scale <- scale(swiss)
+swiss_dist <- dist(swiss_scale)
+```
+
+La función dist calcula la distancia euclídea por defecto, si queremos otra tipo de distancias podemos consultar la función dist en help.
+
+
+Pasamos a la construcción del modelo
+```{r}
+( mds_swiss <- mds(delta=swiss_dist,
+                   ndim=2,
+                   type="ratio"))
+```
+En este caso ajustamos un modelo métrico. 
+Obtenemos un valor de 0.141 de estrés, por lo que en principio es un modelo bastante bueno.
+
+
+Configuramos la distribución espacial.
+```{r}
+plot(mds_swiss, label.conf=list(por=5, cex=0.3)) #plot.type = "confplot"
+abline(h=0, v=0, lty=2) #para poner lineas en los ejes y estilo
+```
+
+Vemos que la mayoría se concentra cerca unos de otros, excepto algún caso como el de Geneve. Estos son los casos más interesantes a evaluar, cuál es en comportamiento distinto que hace que se separe del resto.
+
+
+Para ver esto podemos usar mapas de calor.
+```{r}
+heatmap(as.matrix(swiss_scale), cexRow = 0.2, cexCol = 0.8, Colv=NA, Rowv = NA, scale="none")
+```
+
+Si nos fijamos en Geneve, tiene un valor bastante más alto que el resto (rojo oscuro=más valor), educación, y valores muy bajo en fertilidad y agricultura.
+
+
+También podemos analizar esto creando grupos mediante análisis cluster. 
+Vamos a crear 3 grupos utilizando una agrupación por k-means y colorearlo.
+```{r}
+swiss_coor <- as.data.frame(mds(swiss_dist, ndim=2, type = "ratio")$conf)
+
+#agrupación K-means
+set.seed(123)
+swiss_coor$grupos <- as.factor(as.vector(kmeans(swiss_coor, 3)$cluster))
+
+#graficar y colorear por grupo
+library(ggpubr)
+library(ggplot2)
+ggscatter(swiss_coor, x="D1", y="D2",
+          label=rownames(swiss),
+          color="grupos",
+          palette="jco",
+          size=0.1,
+          ellipse=TRUE,
+          ellipse.type="convex",
+          repel=TRUE)
+```
+
+Lo que hemos hecho es crear un confunto de datos con las coordenados de la dimensión 1 y 2 en dos columnas, y ha esto le hemos añadido una columna más que se llama grupos, con la agrupación de cada uno de ellos en 3 grupos.
+
+En base a esto podemos descubrir en qué destaca cada grupo mediante un análisis descriptivo. 
+
+
+
+
+BONDAD DE AJUSTE DEL ESCALAMIENTO MULTIDIMENSIONAL
+
+Veamos ahora cómo podemos evaluar si el ajuste que hemos realizado es correcto o "bueno". Existen varias herramientas que nos permiten realizar este análisis.
+
+El Stress-1 o estrés normalizado, no depende de las unidades de medida utilizadas.
+```{r}
+fit_guerry <- mds(delta= Guerry, ndim=2, type="ratio")
+fit_guerry$stress
+```
+Vemos que tenemos un estrés de praticamente 0
+
+¿Cuál es un valor de estrés "bueno"?
+- El límite inferior es 0 (ajuste perfecto)
+- El valor bruto del estrés en sí mismo no es muy informativo. Un valor alto no  necesariamente indica mal ajuste.
+
+Hay que saber entonces con qué lo comparamos para saber si es bueno o no.
+
+¿Cuándo el modelo es "bueno"? Tenemos 2 opciones
+
+- Podemos comparar el estrés obbtenido con el valor del  estrés aleatorio promedio para esta relación (matriz de disimilitud aleatoria).
+
+```{r}
+mean(randomstress(n=nrow(Guerry), #tamaño
+                  ndim=2,
+                  nrep=50)) #réplicas
+```
+Vemos entonces que sí que es bueno nuestro modelo.
+
+
+- También podemos utilizar permutaciones de la matriz de disimilitud.
+
+```{r}
+set.seed(1234)
+permtest(fit_guerry,      #modelo
+         nrep = 50,       #repeticiones
+         verbose = FALSE) #no enseña resultados intermedios
+```
+
+Aquí obtenemos un P-valor, que si nuestro modelo es mejor a todas esas réplicas entonces el P-valor debe ser significativo, menor al menos a 0.05.
+
+Por tanto podemos decir que nuestro modelo es bueo ya que cumple con las 2.
+
+
+
+- También podemos evaluar la bondad de ajuste mediante DESCOMPOSICIÓN DEL ESTRÉS POR ÍTEMS..
+
+Representa la contribución al estrés de cada observación (o estrés por punto SPP; %). Cuanto mayor sea la contribución peor será el ajuste.
+```{r}
+plot(mds_swiss, plot.type="stressplot", label.conf=list(cex=0.5, pos=5))
+```
+
+Tenemos la contribución de cada una de las provincias de mayor a menor. Podemos ampliar el gráfico para poder ver las etiquetas.
+
+
+
+- O tambien podemos evaluar la bondad del ajuste mediante un GRÁFICO DE BURBUJAS.
+
+Este gráfico combina el gráfico de configuración con la contribución al estrés por punto (SPP). Cuanto más grande sean las burbujas, peor será el ajuste.
+```{r}
+plot(mds_swiss, plot.type="bubbleplot", label.conf=list(cex=0.5, pos=5))
+```
+
+Vemos que combina ambos gráficos.
+
+
+
+- Por último, podemos evaluar la bondad del ajuste mediante el DIAGRAMA DE SHEPARD.
+
+Es un diagrama con las diferencias observadas (proximidades) frente a las distancias ajustadas. incluye una línea de regresión (isotónica) para ver como se corresponden.
+
+```{r}
+plot(mds_swiss, plot.type="Shepard")
+```
+
+Vemos que bajas proximidades están por debajo de esa recta pero en general sigue la linea marcada (lo que sería un ajuste perfecto)..
+
+También podríamos observar gráficos para los residuos.

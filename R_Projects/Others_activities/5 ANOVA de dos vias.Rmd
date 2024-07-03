@@ -1,0 +1,215 @@
+---
+title: "Diseño bifactorial, ANOVA de dos vías"
+author: "Daniel Barandiarán"
+date: "27/2/2022"
+output: html_document
+---
+
+El ANOVA de dos vías (o bidireccional) compara varias medias cuando hay dos variables independientes (o factores). Estas pruebas nos permitirán evaluar efectos de interacción.
+
+ANOVA 2 VIAS ENTRE-GRUPO PARAMETRICA (independientes y categóricas)
+
+El ANOVA de 2 vías entre-grupos se utiliza para evaluar simultáneamente el efecto de dos factores de muestras independientes sobre una variable respuesta continua.
+
+Queremos evaluar si las puntuaciones en matemáticas difieren entre sexos y tipo de programa (general, académico y vocacional), y si existe interacción entre estas variables explicativas.
+Lo primero exploración de datos.
+
+```{r}
+library(rstatix)
+library(tidyverse)
+library(ggpubr)
+library(ggstatsplot)
+library(openintro)
+library(ggplot2)
+```
+
+```{r}
+hsb2 %>% group_by(gender, prog) %>% get_summary_stats(math, type="mean_sd")
+```
+Lo siguiente es visualizar:
+
+```{r}
+ggplot(data=hsb2, aes(x=gender, y=math)) + geom_boxplot(aes(fill=prog),width=0.8) + theme_bw()
+```
+
+Parece que el académico obtiene mayor puntuación.
+
+Lo siguiente es verificar los SUPUESTOS.
+
+Normalidad
+```{r}
+hsb2 %>% group_by(gender, prog) %>% shapiro_test(math)
+```
+Vemos que la mayoría cumple el supuesto de normalidad.
+
+```{r}
+ggqqplot(hsb2, "math", ggtheme = theme_bw()) + facet_grid(gender~prog)
+```
+Vemos que el ultimo caso no cumple.
+
+Ahora vemos los outliers:
+```{r}
+library(tidyverse)
+hsb2 %>% group_by(gender, prog) %>% identify_outliers(math)
+```
+
+Solo hay uno.
+
+Y ahora la homogeneidad de varianza:
+```{r}
+hsb2 %>% levene_test(math~gender*prog)
+```
+Vemos que cumple con el supuesto.
+
+El siguiente paso es ajustar el modelo:
+Para representar los efectos principales y el efecto de interacción entre 2 factores utilizamos el asterisco (*) en la función anova_test() del paquete rstatix así:
+```{r}
+hsb2 %>% anova_test(math~gender*prog)
+```
+vemos que solo en el caso del tipo de programa existe diferencias de nota en matemáticas.
+
+
+Prueba post-hoc
+
+Si obtenemos alguna prueba significativa, debemos realizar pruebas de comparaciones múltiples post hoc. Tenemos 2 casos:
+Para realizar las pruebas post-hoc utilizamos la función pairwise_t_test() del paquete rstatix:
+
+Cuando no hay un efecto de interacción significativo pero sí un efecto principal del factorA:
+datos %>% pairwise_t_test(respuesta ~ factorA)
+Cuando sí hay un efecto de interacción significativo:
+datos %>% group_by(factorB) %>% pairwise_t_test(respuesta ~ factorA)
+
+En nuestro caso solo fue la variable prog
+```{r}
+hsb2 %>% pairwise_t_test(math~prog, p.adjust.method = "holm")
+```
+Vemos que entre todos los grupos hay diferencias, pero en concreto el primer grupo y el tercero más.
+
+```{r}
+hsb2 %>% group_by(gender) %>% pairwise_t_test(math~prog, p.adjust.method = "holm")
+```
+Como se repite el mismo patron, es decir, no hay diferencias entre hombres y mujeres, porque se repite para los mismos grupos de programa.
+
+Por ultimo comunicar resultados.
+
+```{r}
+grouped_ggbetweenstats(data=hsb2, x=prog, y=math, grouping.var = gender, results.subtitle=F, message=F, var.equal=T, p.adjust.methods="holm")
+```
+
+Este es el caso en el que hubiese una interaccion significativa, aunque no sea el caso.
+
+
+ANOVA 2 VIAS ROBUSTA Y NO PARAMÉTRICA (independientes)
+
+Como viene a ser igual que en todos los ejemplos anteriores veremos solo que funciones usar. Wilcox propuso procedimientos robustos para realizar ANOVA factorial con el paquete WRS2: 
+
+Medias recortadas:
+- t2way(): esto realiza un ANOVA independiente bidireccional en medias recortadas.
+- mcp2atm(): realiza pruebas post-hoc para un diseño independiente bidireccional basado en medias recortadas.
+- pbad2way(): esto realiza un ANOVA independiente bidireccional utilizando medidas M de ubicación (por ejemplo la mediana) y un bootstrap.
+- mcp2a(): realiza pruebas post.hoc para la función anterior.
+
+En cuanto a métodos no paramétricos, las pruebas están basadas en rangos. También existe un método especial basado en la alineación de los datos antes de crear los rangos. La alineación implica que se resta de cada observación alguna estimación de una ubicación, como la media o la mediana de las observaciones.De este modo los datos alineados de acuerdo con el efecto principal o de interacción deseados, se llevan a rangos y se realiza pruebas paramétricas en las filas alineadas.
+
+
+ANOVA DE DOS VIAS MIXTO.
+
+Se utiliza para evaluar simultáneamente el efecto de dos variables explicativas categóricas (factores), uno de muestras independientes y otro de muestras relacionadas, sobre una variable respuesta continua.
+
+Se llama factor entre-grupos (EG) a aquel que está formado por muestras independientes (por ejemplo, género: hombre / mujer).
+
+Se llama factor intra-sujetos (IS) a aquel que tiene muestras relacionadas también conocidas como medidas repetidas (por ejemplo, tiempo: antes / después del tratamiento). Recuerda transformar los datos a formato largo para poder tratar el factor IS.
+
+Además de los supuestos clásicos (linealidad, normalidad, homogeneidad de varianza y ausencia de outliers), se suman dos supuestos: 
+
+- Homogeneidad de covarianza. Utilizamos la prueba M de Box box_m() para evaluarla. Ten en cuenta que es una prueba muy sensible a los tamaños de muestra desiguales. Si no tiene homogeneidad de covarianzas, podrías considerar separar el análisis en distintos ANOVA de medidas repetidas para cada grupo. Alternativamente, puedes omitir la interpretación del término de interacción.
+- Esfericidad. La prueba de Mauchly se utiliza internamente en la función anova_test() para evaluar el supuesto de esfericidad. Al usar la función get_anova_table()[rstatix] para extraer la tabla ANOVA, la corrección de esfericidad de Greenhouse-Geisser se aplica automáticamente a los factores que violan el supuesto de esfericidad.
+
+
+El primer paso será dar forma a los datos.
+
+```{r}
+hsb2_long <- hsb2 %>% gather(key="test", value="score", read, write, math, science, socst) %>% convert_as_factor(id, test)
+head(hsb2_long)
+```
+
+El siguiente paso es describir y visualizar los datos.
+
+```{r}
+hsb2_long %>% group_by(test, prog) %>% get_summary_stats(score, type = "mean_sd")
+```
+```{r}
+ggplot(data=hsb2_long, aes(x=test, y=score)) + geom_boxplot(aes(fill=prog), width=0.8) + theme_bw()
+```
+
+Vemos que hay diferencias entre ellos, incluso más por tipo de programa.
+
+Verificar supuestos.
+
+```{r}
+hsb2_long %>% group_by(test, prog) %>% identify_outliers(score)
+```
+Vemos que existen algunos puntos.
+
+```{r}
+hsb2_long %>% group_by(test, prog) %>% shapiro_test(score)
+```
+
+Vemos que hay unos cuantos casos que no cumplen el caso de normalidad.(<0.05).
+
+```{r}
+ggqqplot(hsb2_long, "score", ggtheme = theme_bw()) + facet_grid(test~prog)
+```
+
+Efectivamente vemos que que hay ciertos puntos que sobresalen de los límites.
+
+
+Verificar supuestos de varianza y covarianza.
+```{r}
+hsb2_long %>% group_by(test) %>% levene_test(score~prog)
+```
+Todos cumplen con el supuesto.
+
+```{r}
+box_m(hsb2_long[, "score", drop=FALSE], hsb2_long$prog)
+```
+El P-valor es mayor a 0.05 por lo que cumple con el supuesto.
+
+Ajuste del modelo.
+```{r}
+res.aov <- anova_test(data=hsb2_long,
+                      dv=score, wid=id, between = prog, within=test)
+get_anova_table(res.aov) #aplica correción automática
+```
+Vemos que hay diferencias significativas la variable prog y en la interacción.
+
+Prueba post hoc
+
+Interacción no significativa o significativa.
+Como el segundo es nuestro ejemplo lo realizamos así.
+```{r}
+hsb2_long %>% group_by(prog) %>% pairwise_t_test(score~test, paired = TRUE, p.adjust.method = "holm") %>% filter(p.adj < 0.05)
+```
+Solo hay diferencias en el grupo académico, y en los casos de science con cada grupo.
+
+Comunicación de resultados 
+
+```{r}
+grouped_ggwithinstats(data=hsb2.long, x=test, y=score, grouping.var = prog, results.subtitle=F, messages=F, var.equal=T, p.adjust.methods="holm")
+```
+
+Como vemos que solo hay en académico podemos hacerlo solo para ese.
+```{r}
+hsb2_long %>% filter(prog=="academic") %>% ggwithinstats(x=test, y=score, results.subtitle=F, messages=F, var.equal=T, p.adjust.methods="holm")
+```
+
+Vemos que solo es para ciencias entre los demás.
+
+Existen métodos robustos basados en medias recortadas y estimadores M que se describen en el libro de Rand Wilcox (Wilcox, 2005). Wilcox también pone a disposición funciones para realizar estas pruebas en R. Para acceder a estas pruebas necesitamos cargar el paquete WRS (o WRS2). Hay cuatro funciones disponibles:
+
+tsplit(): Realiza un ANOVA mixto bidireccional en medias recortadas.
+sppba(): calcula el efecto principal del factor A de un diseño mixto bidireccional utilizando un estimador M y bootstrap.
+sppbb(): calcula el efecto principal del factor B de un diseño mixto bidireccional utilizando un estimador M y bootstrap.
+sppbi(): calcula la interacción A × B de un diseño mixto bidireccional utilizando un estimador M y bootstrap.
+
+

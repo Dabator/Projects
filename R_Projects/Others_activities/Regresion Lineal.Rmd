@@ -1,0 +1,199 @@
+---
+title: "Correlación lineal"
+author: "Daniel Barandiarán"
+date: "19 de diciembre de 2021"
+output: html_document
+---
+
+```{r}
+library(datarium)
+data="marketing"
+head(marketing)
+```
+```{r}
+library(ggplot2)
+ggplot(marketing, aes(youtube, sales)) + geom_point() + stat_smooth(method = "lm")
+```
+
+```{r}
+model <- lm(sales ~ youtube, data= marketing) #interpretar na valores con: na.action = na.omit o na.exclude, excluye los datos fatantes.
+```
+
+```{r}
+summary(model)
+```
+- p valor del estadístico f es <0,05 por lo tanto es significativa la relacion entre variables.
+- Residual standard error: RSE=3,91
+- Con el RSE podemos calcular la tasa de error en porcentaje: RSE/Y(media)
+por tanto:
+```{r}
+sigma(model)*100/mean(marketing$sales)
+```
+De este modo sabemos que existe un error estándar del 23%
+- Coeficiente de determinación R^2 (representa la proporción de la variación de la respuesta que puede ser explicada por el modelo): R^2=61,2%, 
+este valor nos muestra que el predictor explica bastante bien la variable respuesta.
+- Intercept = b0
+Por tanto, el modelo final es:
+                    Sales= 8,44 + 0,048*youtube
+                    
+Los residuos deben tener media cercana a 0, y min y max muy similares en valores absolutos.
+
+```{r}
+anova(model)
+```
+La prueba F, mencionada anteriormente, es una medida de cuánta variabilidad puede explicar nuestro modelo en relación a cuanto no puede explicar. por ello, al igual que en apartado del coeficiente r^2 para estimar el estadístico F utilizaremos la tabla ANOVA que analiza la relación entre diferentes fuentes de variabilidad en los datos.
+
+Las hipótesis para la prueba-F son las siguientes: 
+h0 <- los datos se ajustan perfectamente al modelo de forma que no existen variablese predictoras (solo el intercepto/constante) 
+h1 <- el ajuste del modelo es mejor que utilizar tan solo el intercepto. es decir, se mejora la estimación de la respuesta. 
+p < 0,05 anulamos hipotesis nula, modelo significativo.
+(el valor de P, en otras palabras, indica que existe esa probabilidad de  que la hipóteis nula se cumpla, es decir, si tenemos un P=0,010, quiere decir que existe un 1% de que la hipótesis nula se cumpla).
+
+Por otro lado, para calcular R^2 solo tenemos que dividir MSS(4773,1) entre TSS(MSS+RSS)(7800,7) 
+
+```{r}
+summary(model)$r.squared
+```
+Con esta función le pedimos que solo nos muestre el R^2
+R^2 mide la fuerza de una relación lineal, cuanto más cerca estén los puntos de la recta de regresión, más altos será este valor. Es decir, cuanta más variabilidad sea posible explicar. El valor de R^2 será adecuado o no dependiendo del area de estudio.
+Por otro lado, si existe una relación curvilinea perfecta, tendremo un R2 bajo, porque este se refiere a una linea. por ello, debemos mirar antes las gráficas de dispersion para ver si existe otro tipo de tendencia que no sea lineal. Por tanto, el valor R^2:
+- No nos dice si un modelo de regresión lineal es adecuado.
+- No afecta la interpretación de variables significativas.
+- No nos dice si nuestras predicciones serán precisas
+
+No se debe usar de forma aislada, sino evaluarlo junto con los gráficos de residuos (diagnóstico y tendencia), el resto de estadísticos del modelo (significación y coeficientes) y el conocimiento del campo de estudio.
+
+```{r}
+summary(model)$coefficients
+```
+Aqui encontramos. 
+- La estimación beta 
+- Errores estándar que definen la precision
+- Valor estadístico t para la prueba de significación
+
+```{r}
+confint(model)
+```
+Estos son los intervalos de confianza que se obtienen a partir de los errores estándar. Nos mestran el intervalo que puede contener el valor beta del intercepto o el que acompaña las variables.
+
+DIAGNOSTICO
+
+Para determinar si representa adecuadamente dichos datos, LINE:
+- L de Linealidad: los valores de Y se pueden expresar como una funcion lineal de la variable X
+- I de Independencia: los valores de Y(o residuos/errores) son independientes entre sí
+-N de Normalidad: para cualquier valor fijo de X, los valores de Y(o residuos) se distribuyen normalmente
+- E de Equitatividad: la variación de los valores de Y(o residuos) alrededor de la linea de regresión es constante (homocedasticidad)
+
+```{r}
+plot(model)
+```
+En el primer gráfico observamos la LINEALIDAD y HOMOCEDASTICIDAD de los residuos. Vemos el error Y y el valor ajustado X, para que sea lineal debe seguir la linea de regresion estando dentro de la nube de puntos. Y para que se cumpla la homocedasticidad, deben permanecer los residuos constantes y no hacerse mayores y abrirse en forma de abanico. En nuestro caso existe linealidad pero se cumple heterocedasticidad
+
+Si existe falta de linealidad se puede modificar valores en términos de mayor orden (X^2), probar con nuevas variables explicativas, interaccion, o usar modelo no lineal.
+
+En el segundo comprobamos la NORMALIDAD de los residuos, para que sea normal debe seguir la linea diagonal coincidiendo la gran mayoría sobre la línea.En nuestro caso podemos decir que se cumple la normalidad porque coinciden la gran mayoría sobre la línea.
+
+En el tercer gráfico se puede comprobar tambien la HOMOCEDASTICIDAD, ya que son los residuos al cuadrado en valor absoluto 8en el eje Y, si de este modo sigue con problemas de heterocedasticidad entonces habría que modificar el modelo. En nuestro caso no se cumple la homocedasticidad.
+
+Y en el último, se compara los residuos Y con el apalancamiento X para detectar valores INUSUALES o INFLUYENTES como: valores atípicos (por la parte de arriba del gráfico); valores de apalancamiento (posicionados a la derecha del gráfico); y valores influyentes (gran distancia de Cook, en la línea de puntos), siendo los más importantes porque son los que cambian el resultado del modelo. En nuestro caso no existe ninguno de los tres problemas, pero podemos comprobarlo con números:
+ - Atípicos: valores donde Y (error i) es mayor a 3
+ - Apalancamiento: valores de x > 2(p + 1)/n -> 2(1 + 1)/200=0,02 (p = número de predictores, en nuestro caso 1) (n=muestra)
+ - Influyentes: distancia Cook > 1
+como solucionar estos ultimos
+Solo hay un número a la derecha del todo que sale muy poco del margen.
+
+Como se puede mejorar? en caso de valores influyentes:
+- Error en la recopilación o creacion de base de datos
+- Analizar a fondo su influencia: estadísticos diagnósticos
+- Comunicar los resultados con y sin estos valores.
+
+Como la eliminacion de un punto afecta a los coeficientes de regresion, la predicción, etc.
+```{r}
+summary(influence.measures(model))
+```
+Los dos primeros son los cambios en los coeficientes. Dffit son los cambios de los valores ajustados. Cov.r se el cambio en la estimación de la matriz de covarianza. Cook.d distancias de Cook. Y hat apalancamiento. Los marcados los * son los que influyen en cada aspecto. En nuestro caso están muy al limite y se podrían analiazar punto a punto por qué difieren de l resto.
+
+Necesitamos una potencia alta y significatividad para dar poder dar credibilidad a un modelo. Un valor de .80 es aceptable. Quiere decir que sea significativo el 80% de las veces.
+La potencia estadistica depende de.
+- Tamaño de la muestra (N): (más N = más potencia)
+- Nivel de significación alta (alfa): arbitrariamente 5% (mayor alfa = más potencia)
+- Tamaño del efecto (ES): cambio en la respuesta, asociado con el efecto que estamos midiendo (ES más grande = más potencia)
+
+```{r}
+library(pwr)
+pwr.f2.test(u = NULL #grados libertad(gl) del numerador en prueba F
+            v = NULL #GL del denom en la prueba F
+            f2 = NULL#tamaño del efecto (ES)
+            sig.level=NULL #nivel significación (alfa, normalmente 0,05)
+            power=NULL) #potencia estadística
+# u=1 (1 predictor)
+# v=n-u-1
+#Para predecir alguno de ellos vale con poner el resto y dejar esa misma sin poner
+```
+```{r}
+summary(model)
+```
+```{r}
+pwr.f2.test(u=1,
+            v=198,
+            f2=1.57732,
+            sig.level= 0.01,
+            power=NULL)
+#f2=R^2/(1-R^2) = 1,57
+# sig.level el que queramos parece...
+```
+Hay una potencia del 100%.
+Si no sabemos el tamaño del efecto, como en estudios teóricos. podemos usar valores preestablecidos. con la función cohen.ES del paquete pwr, ajustable segun queramos pequeño, mediano o grande.
+```{r}
+library(pwr)
+cohen.ES(c("f2"), size=c("small"))
+```
+```{r}
+pwr.f2.test(u=1,
+            v=NULL,
+            f2=0.612/(1-0.612),
+            sig.level= 0.001,
+            power=0.8)
+```
+Para saber cómo tiene que ser nuestra muestra para x potencia debemos dejar v como salida. y una vez tenida calcular: v=n-u-1 -> 15=n-1-1 -> 15+1+1=17
+
+Ahora pasaremos a las predicciones
+```{r}
+new <- data.frame(youtube = c(10, 100, 300))
+predict(model,newdata = new)
+```
+Para un gasto de 10 mil dolares obtiene unas ventas de 8,9 mil dolares y así...
+```{r}
+predict(model,
+        newdata = new,
+        interval = "confidence")
+```
+aqui obtenemos lo mismo que en anterior pero con interalo de confianza en base a la media. De mínimo(lwr) a máximo (upr). 
+
+```{r}
+predict(model,
+        newdata = new,
+        interval = "prediction")
+```
+En este en lugar de fijarse en la media para la estimación del intervalo se fija en el 95%, es decir se fija en valores individuales. Hay un 95% de que este dentro de ese intervalo, por ello es mayor.
+
+Usaremos el que más nos convenga para cada situación. Para predicciones individuales usaremos el de predicción y no el de confianza, ya que de es modo subestimamos la incertidumbre en un valor predicho.
+
+Por último graficaremos el intervalo 
+```{r}
+pred.int <- predict(model, interval = "prediction")
+mydata <- cbind(marketing, pred.int) #introducimos las estimaciones dentro de la base de datos
+View(mydata)
+```
+```{r}
+library(ggplot2)
+p <- ggplot(mydata, aes(youtube, sales)) + geom_point() + stat_smooth(method = lm) #gráfica con linea de regresión en azul, e intervalo en gris
+p + geom_line(aes(y=lwr), color="red", linetype= "dashed") + geom_line(aes(y=upr), color="red", linetype= "dashed")
+#agregamos lineas
+```
+
+Ultimos consejos:
+- No querer predecir valores muy alejados del conjunto de datos.
+- Evitar un modelo demasiado específico para un conjunto de datos. En otras palabras no forzar a sacar punta a un palo sin mina..
+- evitar la validación cruzada. Vale más la pena analizar varaible a variable a fin de obtener más información del modelo.
+

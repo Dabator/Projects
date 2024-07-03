@@ -1,0 +1,119 @@
+---
+title: "Gráficos ggplot"
+author: "Daniel Barandiarán"
+date: "10 de noviembre de 2021"
+output: html_document
+---
+
+EN ggplot2.tidyverse.org HAY MAS EJEMPLOS CON MAS DETALLES Y SOBRE LOS MISMO DATOS
+
+```{r}
+library(ggplot2)
+data("diamonds")
+View(diamonds)
+```
+
+```{r}
+graf <- ggplot(diamonds, aes(diamonds$carat, diamonds$price, color= color, size= table)) + geom_point()
+graf
+#gráfico de dispersion
+```
+
+```{r}
+graf <- graf + facet_grid(~ cut)
+graf
+```
+
+```{r}
+graf <- graf + facet_wrap(facets = "cut")
+graf
+```
+```{r}
+ggplot(diamonds, aes(color)) + geom_bar(fill="orange") +
+  coord_flip() + #para girar las barras ne horizontal
+  theme_minimal() +
+  labs(title = "gráfico barras de los colores de los diamantes",
+       subtitle= "datos del conjunto de datos diamonds de la librería ggplot2") +
+  theme (plot.title = element_text(size=19), #cambiar tamaño título
+         axis.title = element_text(size=13), #cambiar tamaño títulos ejes
+         axis.title.y = element_text(angle = 360), #poner recto titulo del eje y
+         axis.title.x = element_text(hjust = 1)) #mover derecha titulo del eje x (= 0 Izquierda; = 0.5 centrado; = 1 derecha)
+#gráfico de barras para variable cualitativa con posición horizontal
+
+#ggtheme para utilizar temas completos
+
+```
+```{r}
+ggplot(diamonds, aes(color, fill = cut)) + geom_bar(position = position_dodge(preserve = "single")) # así, o simplemente: position="dodge"
+```
+
+```{r}
+library(grid)
+library(gridExtra)
+library(ggplot2)
+```
+
+
+```{r}
+p500 <- ggplot(diamonds, aes(price)) + geom_histogram(binwidth = 500, fill="red", color="black") + labs(title="binwidth 500") 
+
+p1000 <- ggplot(diamonds, aes(price)) + geom_histogram(binwidth = 1000, fill="green", color="black") + labs(title="binwidth 1000")
+
+p1500 <- ggplot(diamonds, aes(price)) + geom_histogram(binwidth = 1500, fill="blue", color="black") + labs(title="binwidth 1500")
+grid.arrange(p500, p1000, p1500, ncol = 3)
+```
+
+```{r}
+hdoble <- ggplot(diamonds, aes(price, fill=cut)) + geom_histogram(binwidth = 1000) + labs(title="histograma por grupos")
+hdoble
+#asi vemos  el histograma por grupos unos montados sobre otros ( es la funcion "position = stack" que viene por defecto)
+```
+
+```{r}
+hdoble <- ggplot(diamonds, aes(price, fill=cut, color="black")) + geom_histogram(binwidth = 1000, position = "identity", alpha=0.5) + labs(title="histograma por grupos")
+hdoble
+#asi vemos el histograma por grupos superpuestos, por lo que algunos grupos nos se aprecian por la transparencia (alpha)
+```
+
+```{r}
+hdoble <- ggplot(diamonds, aes(price, fill=cut)) + geom_histogram(binwidth = 1000, position = "dodge") + labs(title="histograma por grupos") + geom_vline(aes(xintercept = mean(diamonds$price), color="grey")) 
+hdoble
+#asi vemos el histograma con los grupos separados por cada contenedor (de la mejor forma en este caso) con la media el rojo
+```
+
+```{r}
+diam <- diamonds[ ,-2]#full data menos la columna 2 (cut)
+ggplot(diamonds, aes(price, fill=cut)) + geom_histogram(data=diam,fill="grey") + geom_histogram(color="black") + facet_wrap(~ cut) + theme_bw() + guides(fill = FALSE)
+#primero quitamos al segundo data frame la variable cut.
+#montamos la gráfica de precios con relleno segun la variable "cut" y separados en gráficos con "facet_wrap" en valores de "cut"
+#ponemos los datos de price pero del data "diam" de modo que no se separa en los gráficos por la variable "cut" ya que no existe, y rellenos de color gris (podemos ponerle más transparencia con "alpha")
+#ponemos los datos de precios del data "diamonds" que van separados en los graficos, y con contorno en negro
+#por último, ponemos la temática "theme_bw" para que se va con contornos en los gráficos y de manera más estética. Y ponemos "guides(fill=FALSE)" para que no haya legenda, ya que no hace falta
+```
+```{r}
+ggplot(diamonds, aes(price, fill=cut)) + geom_density(color="black") + facet_wrap(~ cut)
+# para analizar la curva con valores relativos en lugar de absolutos
+```
+```{r}
+library(dplyr)
+```
+
+```{r}
+diam_ideal <- diamonds %>% filter(diamonds$cut=="Ideal") #funcion "%>%" necesita de paquete "dplyr"
+ggplot(diam_ideal, aes(table,price, color=color)) + geom_line()
+```
+
+```{r}
+dia_gra <- ggplot(diamonds, aes(cut,price, fill=color, color=color)) + geom_boxplot() + guides(fill=FALSE) + theme_dark() + labs(title= "distribucion del precio del diamante",
+                                                                                   subtitle="caracteristicas más importantes que influyes en el precio",
+                                                                                   y="precio del diamante",
+                                                                                   x="corte del diamante",
+                                                                                   color="color del diamante",
+                                                                                   caption="www.maximaformacion.es")
+dia_gra
+```
+
+```{r}
+ggsave("diamonds_graf.png", plot = dia_gra, dpi=320)
+```
+

@@ -1,0 +1,108 @@
+---
+title: "Analisis de correlacion"
+author: "Daniel Barandiarán"
+date: "18 de diciembre de 2021"
+output: html_document
+---
+
+```{r}
+library(MASS)
+library(ggplot2)
+library(GGally)
+```
+```{r}
+data("stackloss")
+```
+
+```{r}
+ggplot(stackloss, aes(Air.Flow, stack.loss)) + geom_point()
+ggpairs(stackloss)
+```
+```{r}
+cor(stackloss)
+```
+
+aqui mostramos dos correlaciones de las mismas variables con métodos distintos: 
+Pearson: que se utiliza para relaciones lineales: (predeterminada)
+Spearman: que se utiliza para relaciones monotonas (mismo sentido, positivo)
+```{r}
+cor(stackloss$stack.loss, stackloss$Air.Flow)
+```
+```{r}
+cor(stackloss$stack.loss, stackloss$Air.Flow, method = "spearman")
+
+```
+Para evaluar si existe o no correlación tambien se puede hacer mediante prueba de hipótesis:
+Ho: p=0 (no existe relación)
+H1: p/=0 (si existe)
+con nivel confianza 95%, si p<0,05 rechazamos H0.
+
+Antes debe cumplir ciertos requisitos segun el metodo a usar:
+- Relación lineal (pearson) o monótona (spearman).
+- sin outlers, anomalías (pearson)
+- datos suficientes (30 min, pearson)
+- DISTRIBUCION NORMAL
+Para saber si se trata de una distribución normal debemos usar la prueba de normalidad de Shapiro-Wilks. Si p<0,05 rechazamos que tenga distribucion normal
+```{r}
+ggplot(stackloss, aes(Air.Flow, stack.loss)) + geom_point()
+```
+Como hemos visto antes, se puede decir que tiene tendencia lineal y monotona, no hay valores atípicos de importancia
+
+```{r}
+shapiro.test(stackloss$Air.Flow)
+```
+```{r}
+shapiro.test(stack.loss)
+```
+RECHAZAMOS LA NORMALIDAD EN AMBAS VARIABLES. Por tanto, usaremos spearman para la correlación en lugar de pearson.
+
+```{r}
+#correlación pearson 
+cor.test(x=stackloss$Air.Flow, y=stack.loss)
+```
+podemos decir que la correlacion es positiva y alta, con intervalo de confianza de 0,81 y 0,96
+
+```{r}
+cor.test(x=stackloss$Air.Flow, y=stack.loss, method = "spearman")
+```
+del mismo modo, aqui obtenemos que es significativa, positiva y alta. 
+
+No hay que confundir correlación con causalidad. Una cosa no significa otra. Además, a veces la correlación entre dos variables se ve influenciada por una tercera variable, que es la que verdaderamente influye en las variables. variable de confusion o de control. Cuando hay diferencia de correlación entre dos variables(clásica) y ptra correlación con una variable de control (parcial) sigifica que no existe correlación con las dos primeras, sino la tercera con ambas. 
+```{r}
+cor.test(x=stackloss$Air.Flow, y=stackloss$Acid.Conc.)
+```
+En este caso vemos que hay una ligera correlación significativa y positiva. Ahora veamos con la variable de control
+```{r}
+library(ppcor)
+pcor.test(x=stackloss$Air.Flow, y=stackloss$Acid.Conc., z=stackloss$Water.Temp)
+
+```
+Ahora vemos que, ademas de haber diferencia en la correlación, no es significativa. Por lo que la temperatura del agua es lo que influye entre las dos variables.
+
+Por último, debemos saber hasta que punto es fiable estos resultados. y si necesitamos de mayor muestra para afianzar los resultados. Por lo tanto necesitamos saber la "potencia" de, en este caso, la correlación.
+```{r}
+library(pwr)
+# > pwr.r.test(r(correlación), 
+           #  n(muestra), 
+           #  sig.level(significatividad(0,05)), 
+           #  power(potencia))
+
+# A raíz de los tres primeros parametros, podemos obtener el cuarto. Y si en lugar de eso, queremos hallar que  muestra debemos tener para el la potencia llegue a 80 (por ejemplo) hay que hacer al revés, poner el parámetro power dentro de la función y el programa nos devolverá el tamaño de muestra.
+```
+El valor de la potencia tiene que ser de al menos el 80% para decir que es fiable el resultado
+
+```{r}
+data(iris)
+head(iris, 5)
+```
+
+```{r}
+iris_num <- iris[,-5]
+```
+```{r}
+cor(iris_num)
+```
+```{r}
+cor.test(iris_num$Sepal.Width, iris_num$Petal.Length, method = "spearman")
+```
+

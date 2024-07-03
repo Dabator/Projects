@@ -1,0 +1,653 @@
+---
+title: "comparacion puntuaciones (numéricas)"
+author: "Daniel Barandiarán"
+date: "21/1/2022"
+output: html_document
+---
+
+Aquí veremos cómo comparar medidas de centralidad, por ejemplo la media, para una variable numérica (puntuaciones) cuando tenemos una o dos muestras, independientes o relacionadas.
+Veremos que prueba usar según sean los datos paramétricos, no paramétricos, robustos(paramétrico pero con outlers), y según el número de muestras y si son relacionas o independientes.
+
+1 MUESTRA
+Paramétricos -> Prueba T de Student
+No paramétricos -> Prueba de Wilcoxon
+Robustos -> Prueba de Yuen 
+
+2 MUESTRAS Independientes (MI) 
+Paramétricos -> Prueba T de Student para MI
+No paramétricos -> Prueba U Mann-Whitney
+Robustos -> Prueba de Yuen  para MI
+
+2 MUESTRAS Relacionadas (MR)
+Paramétricos -> Prueba T de Student para MR
+No paramétricos -> Prueba de Wilcoxon para MR
+Robustos -> Prueba de Yuen para MR
+
+
+PRUEBA PARAMETRICA T DE STUDENT PARA UNA MUESTRA
+
+Para comparar la media de una variable con un valor de media conocida (teórica o hipotética).
+Ejemplo: comparar la calificación media en escritura con la referencia general de 50 (valor teórico) puntos.
+Pregunta: ¿La media poblacional es distinta/mayor/menor a la media teórica?
+H0 -> u = / >= / <= m
+H1 -> u =/ / < / > m
+
+En primer lugar, explorar los datos y graficar.
+```{r}
+library(openintro)
+data(hsb2)
+head(hsb2)
+```
+```{r}
+install.packages("dplyr")
+```
+
+
+```{r}
+library(ggpubr)
+library(rstatix)
+hsb2 %>% get_summary_stats(write, type="mean_sd")
+ggboxplot(y="write", data=hsb2, add="mean", add.params=list(color="red"))
+```
+
+Vemos que es bastante factible ya que la media es muy cercana a 50 y tiene una desviación de 9.
+El segundo paso es evaluar los supuestos del modelo. 
+Como es paramétrica no puede haber valores atípicos.
+```{r}
+hsb2 %>% identify_outliers(write)
+```
+Vemos que no existe ningun valor atípico.
+También que la muestra siga una distribución normal. Para ello podemos utilizar la prueba de Shapiro-Will, o usar gráficos.
+```{r}
+hsb2 %>% shapiro_test(write)
+ggqqplot(hsb2, x="write")
+```
+Según el P-valor de la prueba de Shapiro rechazaríamos la hipótesis nula de normalidad, indicándonos que no habría normalidad en los datos, Y además el gráfico nos indica lo mismo al existir varios puntos que se salen de los interválos de confianza. De todas formas continuaremos con el ejemplo.
+Veremos ahora la prueba T de Student, para ello hay que activar el paquete rxtatix.
+Plantilla
+```{r}
+T_test(data,              #datos con las variables
+       fórmula,           # x~g, x numérica y g factor
+       alternative = "two.sided", #("greater" o "less)
+       mu = 0,            #parámetro para la hipótesis nula
+       conf.level = 0.95, #nivel de confianza
+       ...)
+```
+
+```{r}
+library(rstatix)
+t_test(data=hsb2, write~1, mu=50)
+```
+Aquí vemos que el valor del estadístico nos muestra 0.00005<0.05, por lo que rechazaríamos la hipótesis nula y diríamos que existen diferencias entre la media poblacional y la teórica, aunque esto se debe a que no hay normalidad en la variable.
+
+Ahora nos queda calcular el tamaño del efecto con la prueba de Cohen.
+Plantilla
+```{r}
+library(rstatix)
+cohens_d(data,                    #datos
+         formula,                 #x~g, x numérica y g factor
+         mu=0,                    #parámetro de la hipótesis nula
+         hedges.correction = F,   #correción de Hedges (se puede consultar)
+         conf.level = 0.95,       #nivel de confianza
+         ci = FALSE               #TRUE para IC con bootstrap
+         ci.type = "perc",        #"norm", "basic", "perc", "bcs"
+         nboot = 1000, ...)       #muestras para bootstrap
+```
+```{r}
+cohens_d(data=hsb2, write~1, mu=50)
+```
+Esto nos muestra un tamaño de efecto de 0.29. Según Cohen: 0.2 (pequeño), 0.5 (moderado), 0.8 (grande).
+Finalmente queda comunicar los resultados. Podemos usar un hisograma donde nos indica todos los resultados en formato APA.
+```{r}
+gghistostats(data=hsb2, 
+             x="write",
+             test.value = 50,
+             type = "p", # p de paramétrica
+             test.value.size=T,
+             test.value.line=T,
+             normal.curve = T,
+             bf.message = F)
+```
+Esto reune todos los resultados que hemos visto antes.
+
+
+PRUEBA ROBUSTA DE YUEN PARA UNA MUESTRA
+
+Es una prueba paramétrica pero en lugar de los datos originales, se recortan en los extremos. Sirve para comparar la media (recortada) de una variable con un valor de media conocida (valor teórico o hipotético).
+Ejemplo: comparar la calificación media (recortada) en escritura (write) con la referencia general de 50 puntos.
+La pregunta es igual a la planteada en el anterior ejemplo pero con la media recortada. Al igual con las hipótesis. 
+
+```{r}
+library(openintro)
+library(rstatix)
+library(tidyverse)
+library(dplyr)
+hsb2 %>% filter(between(write,
+                        quantile(write, 0.1),
+                        quantile(write, 0.9))) %>% get_summary_stats(write, type="mean_sd")
+```
+```{r}
+library(ggpubr)
+library(ggstatsplot)
+hsb2 %>% filter(between(write,
+                        quantile(write, 0.1),
+                        quantile(write, 0.9))) %>% ggboxplot(y="write", add="mean", add.params=list(color="red"))
+
+```
+Como vemos aquí, tenemos una media cercana a 50 y un sd de 7, por lo que en principio estamos bien cerca del supuesto. Y como es obvio no se ven outlers.
+Los supuestos para una prueba paramétrica, como hemos visto ya, es que no hayan puntos atípicos (que no hay porque lo hemos recortado), y que la distribución de la variable siga una distribución normal. 
+```{r}
+hsb2 %>% filter(between(write,
+                        quantile(write, 0.1),
+                        quantile(write, 0.9))) %>% shapiro_test(write)
+```
+La prueba de Shapiro Wills nos indica que hay un Pvalor significativo <0.05, lo que nos indica que rechazamos la hipótesis nula y decimos que no siguen una distribución normal. También lo podemos ver en gráfico QQ.
+```{r}
+hsb2 %>% filter(between(write,
+                        quantile(write, 0.1),
+                        quantile(write, 0.9))) %>% ggqqplot(x="write")
+```
+Vemos del mismo modo que hay muchos valores en las colas que se salen del intervalo de confianza.
+Ya vemos que en este caso tampoco cumple el supuesto de normalidad pero de todas formas se puede continuar con cuidado al interpretar los resultados.
+Ahora utilizaremos la prueba de Yuen para averiguar si exsite diferencia entre la media recortada y la media teórica.
+
+Plantilla
+```{r}
+library(DescTools)
+YuenTTest(X,               #variable(vector)
+          alternative,     #c("less", "greater")
+          mu=0,            #parámetro para la hipótesis nula
+          conf.level=0.95, #nivel de confianza  
+          trim=0.2,...)    #nivel de recorte (20%)
+```
+```{r}
+YuenTTest(hsb2$write, mu=50)
+```
+Según la prueba de Yuen, obteneoms un P-valor inferior a 0.05, lo cual nos dice que debemos rechazar la hipótesis nula, existiendo diferencias entre la media recortada y la media teórica.
+Ahora tocaría calcular el tamaño del efecto, pero no existe actualmente un método que calcule el efecto para la media recortada. Habrái que usar para la media convencional como en el ejemplo anterior. 
+Ahora toca comunicar los resultados. Como hemos hecho anteriormente lo haremos con un gráfico, en este caso histograma.
+```{r}
+gghistostats(data=hsb2,
+             x="write",
+             test.value = 50,
+             type = "robust", 
+             test.value.size=T,
+             test.value.line=T,
+             normal.curve = T,
+             bf.message = F)
+```
+Vemos finalmente que el Pvalor es menor a 0.05 y que la media recortada es de 53.8 fue significativamente distinta de 50.
+
+
+PRUEBA DE WILCOXON PARA UNA MUESTRA NO PARAMÉTRICA.
+
+Comparar la mediana (no sé por qué) de una población con un valor de mediana conocida(teórica o hipotética), cuando la variable no cumple el supuesto de normalidad.
+Ejemplo: comparar la calificación mediana en escritura con la referencia general de 50 puntos. 
+Las hipótesis son las mismas que en los ejemplos anteriores pero esta vez con la mediana poblacional (Me) y la teórica (m).
+En primer lugar realizamos un análisis exploratorio y graficar. 
+```{r}
+library(openintro)
+library(ggpubr)
+library(rstatix)
+hsb2 %>% get_summary_stats(write, type="median_iqr")
+```
+Obtenemos que la mediana es 54 y el valor intercuartílico (25% al 75%) es igual a 14.25.
+```{r}
+ggboxplot(data = hsb2, y="write")
+```
+Como ya de por sí el diagrama de cajas ya contiene el valor de la mediana no hace falta remarcarla en un punto rojo.
+Comprobamos los supuestos. Sabemos del diagrama de cajas que no hay outlers. Y en cuanto a la normalidad. Esta vez lo veremos con un histograma para ver la simetría.
+```{r}
+gghistogram(hsb2, x="write", y="..density..", fill="steelblue", add_density=TRUE)
+```
+Vemos en este caso claramente que no sigue una distribución normal.Podemos verlo mejor pero más adelantes.
+Ahora veremos la prueba de Wilcox para saber si existen diferencias en la mediana. 
+Plantilla.
+```{r}
+library(rstatix)
+wilcox_test(data,                    #datos con las variables
+            formula,                 #x~g, con c numérica y g factor
+            exact=NULL,              #si se debe calcular un p-valor exacto
+            alternative="two_sided", #("greater" o "less")
+            mu=0,                    #parámetro para la hipótesis nula
+            confi.level=0.95,...)    #nivel de confianza
+```
+
+```{r}
+wilcox_test(write~1, data=hsb2, mu=50)
+```
+Vemos que la prueba de Wilcos nos muestra un Pvalor menos a 0.05 , por lo que rechazamos la hipótesis nula y decimos que hay diferencias significativas entre la mediana real y su valor teórico.
+Ya solo queda calcular el tamaño del efecto.
+Plantilla
+```{r}
+library(rstatix)
+library(coin)
+wilcox_effsize(data,
+               formula,
+               alternative="two.sided",
+               mu=0,
+               ci=FALSE,        #si IC con boosttrap
+               conf.level=0.95,
+               ci.type="perc",  #"norm", "basic", "perc", or "bca"
+               nboot=1000,      #muestras para bootstrap
+               ...)
+```
+
+```{r}
+wilcox_effsize(data=hsb2, write~1, mu=50)
+```
+Vemos que el tamaño del efecto es de 0.29, y nos dice que es pequeño.
+Por último debemos informar nuestros resultados.
+```{r}
+library(ggstatsplot)
+gghistostats(x="write",
+             data=hsb2,
+             test.value = 50,
+             type="np",       # np de "no paramétrica"
+             centrality.parameter="median",
+             test.value.size=T,
+             test.value.line=T,
+             bf.message = F)
+```
+Vemos que hay diferencias significativa, el tamaño del efecto, su Ic, y el número de observaciones.
+
+Conclusiones de pruebas de puntuaciones de una muestra
+La medida de tendencia central dependerá del tipo de prueba:
+
+TIPO               MEDIDA
+Paramétrico        Media
+No paramétrico     Mediana
+Robusto            Media recortada
+
+Para informar del tamaño del efecto fíjate en el tipo de prueba que estás realizando:
+Paramétrica -> d de Cohen o g de Hedge
+No paramétrica -> r(=Z/sqr(Nobs))
+Robusta -> Medida de ubicación sólida (no hay)
+
+
+PRUEBA PARAMETRICA T DE STUDENT PARA DOS MUESTRAS INDEPENDIENTES (NUMERICAS)
+
+Se usa para comparar las medias de dos grupos de entidades diferentes.
+Ejemplo: comparar la calificación media de escrituras entre hombres y mujeres.
+Pregunta: ¿La media del grupo A (uA) es distinta/menor/mayor a la media del grupo B (uB).
+Hipótesis:
+H0 uA =  / >= / <= uB
+H1 uA =/ / <  / >  uB
+
+Lo primero sería hacer un análisis exploratorio de las variables y graficar.
+```{r}
+library(openintro)
+library(rstatix)
+library(ggpubr)
+library(tidyverse)
+library(dplyr)
+hsb2 %>% group_by(gender) %>% get_summary_stats(write, type="mean_sd")
+```
+Vemos que no están muy alejadas las medias de los dos grupos, 
+```{r}
+ggboxplot(x="gender", y="write", data=hsb2, add="mean", add.params = list(color="red"))
+```
+Veamos ahora los supuestos del modelo. Hemos visto en los gráficos anteriores que no existen datos atípicos significativos. 
+```{r}
+hsb2 %>% group_by(gender) %>% identify_outliers(write)
+```
+Vemos que no hay.
+Veamos ahora la homogeneidad de la varianza
+```{r}
+hsb2 %>% levene_test(write~gender)
+```
+Según el test, obtenemos un Pvalor de 0.002, por lo que rechazamos la hipótesis nula, rechazandoa así la igualdad de varianza, es decir que la variabilidad entre hombres y mujeres es distinta. 
+El siguiente supuesto es de normalidad. 
+```{r}
+hsb2 %>% group_by(gender) %>% shapiro_test(write)
+```
+Vemos que en ambos es menor a 0.05, por lo que no se cumple la normalidad en ambos grupos.Veamoslo en gráfico.
+```{r}
+ggqqplot(hsb2, x="write", facet.by = "gender")
+```
+De la misma manera vemos que no cumplen el supuesto de normalidad.
+Ahora veremos la prueba T de Student.
+
+Plantilla
+```{r}
+library(rstatix)
+t_test(data,
+       formula,
+       paired=FALSE,       #TRUE para muestras relacionadas
+       var.equal = FALSE,  #TRUE para homogeneidad de varianza
+       alternative="two.sided",
+       mu=0, #en 0 para decir que son iguales, y con números para decir si hay esa diferencia
+       conf.level = 0.95,
+       ...)
+```
+```{r}
+t_test(hsb2, write~gender)
+```
+Vemos aquí los resultados de la prueba. Obtenemos un Pvalor menor a 0.05 por lo que rechazamos la hipótesis nula y decimos que existen diferencias entre medias de los dos grupos.
+Vemos ahora el tamaño del efecto.
+```{r}
+cohens_d(write~gender, data=hsb2)
+```
+Obtenemos un tamaño del efecto de 0.52, lo que nos  muestra un tamaño de efecto moderado.
+Ahora comunicar resultados. Esta vez con diagrama de cajas pero junto a un diagrama de violín.
+```{r}
+library(ggstatsplot)
+ggbetweenstats(x=gender, y=write, data=hsb2, bf.message = FALSE) + theme(text=element_text(size=8), plot.subtitle = element_text(size=8))
+```
+
+Aquí ya vemos todos los resultados, con la distribución de los datos. 
+
+
+PRUEBA ROBUSTA DE YUEN PARA DOS MUESTRAS INDEPENDIENTES (NUMERICAS)
+
+Al igual que hemos visto anteriormente pero con medias recortadas.
+Primero vemos el analisis exploratorio
+```{r}
+hsb2 %>% group_by(gender) %>% filter(between(write, quantile(write, 0.1), quantile(write, 0.9))) %>% get_summary_stats(write, type="mean_sd")
+```
+Obtenemos que las medias no son muy distintas a priori. Vemos en gráfico.
+```{r}
+hsb2 %>% group_by(gender) %>% filter(between(write, quantile(write, 0.1), quantile(write, 0.9))) %>% ggboxplot(x="gender", y="write", add = "mean", add.params = list(color="red"))
+```
+Y aquí más de los mismo.
+Ahora vemos si cumplen los supuestos de homogeneidad y normalidad.
+```{r}
+hsb2 %>% filter(between(write, quantile(write, 0.1), quantile(write, 0.9))) %>% levene_test(write~gender)
+```
+Obtenemos que el Pvalor es menor a 0.05 por lo que rechazamos la hipótesis nula y decimos que existe diferencias de varianza entre los dos grupos.
+```{r}
+hsb2 %>% group_by(gender) %>% filter(between(write, quantile(write, 0.1), quantile(write, 0.9))) %>% shapiro_test(write)
+```
+```{r}
+hsb2 %>%  filter(between(write, quantile(write, 0.1), quantile(write, 0.9))) %>% ggqqplot(x="write", facet.by = "gender")
+```
+Vemos que tampoco se cumple la normalidad tanto en la prueba como en el gráfico-
+Para evaluar el modelo usaremos la prueba de Yuen.
+Plantilla
+```{r}
+library(DescTools)
+YuenTTest(x,y,
+          trim=0.2, #nivel de recorte (20%)
+          ...)
+```
+```{r}
+YuenTTest(data=hsb2, write~gender)
+```
+Vemos que el Pvalor es menor a 0.05, por lo que rechazamos la hipótesis nula, afirmando que existe diferencias de las medias recortadas entre géneros.
+Ahora tocaría comprobar el tamaño del efecto.
+Plantilla
+```{r}
+library(WRS2)
+yuen.effect.ci(formula,
+               data,
+               tr=0.2
+               alpha=0.05
+               nboot=400) #réplicas para bootstrap para el calcula del IC
+```
+```{r}
+set.seed(123)
+yuen.effect.ci(write~gender, data=hsb2, nboot = 10)
+```
+Obtenemos que el tamaño del efecto es de 0.3545, lo que nos indica un tamaño del efecto moderado.
+Por último, comunicar los resultados como antes.
+```{r}
+set.seed(123)
+ggbetweenstats(x=gender, y=write, data=hsb2, tr=0.2, type="robust", bf.message = FALSE) + theme(text=element_text(size=8), plot.subtitle = element_text(size=8))
+```
+Aquí vemos todos lo resultados que hemos visto antes (aunque ha cambiado la prueba del tamaño del efecto).
+
+
+PRUEBA NO PARAMÉTRICA U DE MANN-WHITNEY-WILCOXON PARA DOS MUESTRAS INDEPENDIENTES (NUMERICAS)
+
+En el caso de que nuestros datos no cumplan el supuesto de normalidad debemos utilizar una prueba no paramétrica.
+Se utiliza para comparar los rangos o medianas de los valores de distintos grupos.
+Ejemplo: comparar la distribución de la calificación en escritura entre hombres y mujeres.
+Hipótesis:
+H0 la distribución en A es igual/mayor o =/menor o =/ a la distribución B
+H1 la distribución en A es distinta/menor/mayor a la distribución en B
+
+Primero la exploración de los datos.
+```{r}
+library(rstatix)
+library(tidyverse)
+library(ggpubr)
+library(ggstatsplot)
+library(openintro)
+hsb2 %>% group_by(gender) %>% get_summary_stats(write, type="median_iqr")
+```
+```{r}
+ggboxplot(x="gender", y="write", data=hsb2, add="median", add.params = list(color="red"))
+```
+
+Vemos que existe una leve diferencia entre la mediana de los hombres y las mujeres.
+Ahora veremos los supuestos: no hay valores atípicos, y comprobamos la distribución simétrica.
+```{r}
+gghistogram(hsb2, x="write", add = "median", rug=TRUE, bins=15, color="gender", fill="gender", palette="Dark2")
+```
+
+Vemos que no existe una clara simetría en la distribución.
+Para ajustar el modelo utilizamos la prueba de wilcoxon.
+Plantilla
+```{r}
+library(rstatix)
+wilcox_test(data, 
+            formula,
+            exact=NULL,             #para calcular un P-valor exacto
+            alternative="two.sided",#("greater" o "less")
+            mu=0,
+            conf.level = 0.95)
+```
+
+```{r}
+wilcox_test(write~gender, data=hsb2)
+```
+Obtenemos un valor de p menos a 0.05 por lo que rechazamos la hipótesis nula y por tanto existen diferencia entre la distribución de hombres y mujeres.
+En cuanto al tamaño del efecto.
+Plantilla
+```{r}
+wilcox_effsize(data,
+               formula,
+               paired=FALSE,            # TRUE para muestras relacionadas
+               alternative="two.sided", 
+               mu=0,
+               ci=FALSE,                #si IC con bootstrap
+               conf.level = 0.95,
+               ci.type="perc",          #"norm", "basic", "perc", or "bca"
+               nboot=1000,              #muestras para bootstrap
+               ...)
+```
+```{r}
+wilcox_effsize(write~gender, data=hsb2)
+```
+Hemos obtenido un tamaño de efecto de 0.23, lo que es una magnitud pequeña.
+Para comunicar los resultados podemos usar un gráfico como hemos venido usando hasta ahora. 
+```{r}
+ggbetweenstats(x=gender, y=write, data=hsb2, type="np", bf.message = FALSE) + theme(text=element_text(size=8), plot.subtitle = element_text(size=8))
+```
+A partir de este gráfico obtenemos toda la información que hemos visto anteriormente.
+
+
+PRUEBA PARAMETRICA T DE STUDENT PARA DOS MUESTRAS RELACIONADAS 
+
+Se utiliza para comparar las medias de dos muestras relacionadas, es decir, que proceden de las mismas entidades.
+Ejemplo: comparar la calificación media en escritura y lectura en un mismo grupo de estudiantes de secundaria.
+Preguntas/hipótesis: ¿la diferencia media es distinta/menor/mayor que 0?.
+
+En primer lugar, realizamos la exploración de datos.
+
+```{r}
+library(rstatix)
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(ggstatsplot)
+library(openintro)
+hsb2 %>% select(write,read) %>% get_summary_stats(type="mean_sd")
+
+```
+```{r}
+hsb2.long <- hsb2 %>% pivot_longer(c(write, read),
+                                   names_to="test",
+                                   values_to="score") %>% arrange(test, id)
+ggboxplot(x="test", y="score", data=hsb2.long, add="mean", add.params= list(color="red"))
+```
+De estos resultados obtenemos que las medias son muy parecidas, así como la desviación típica.
+Ahora veremos si cumple los supuestos.
+```{r}
+hsb2 <- hsb2 %>% mutate(differences=read-write)
+hsb2 %>% identify_outliers(differences)
+```
+Vemos que no hay ningún valor atípico.
+Además los datos deben seguir una distribución similar a la normal.
+```{r}
+hsb2 %>% shapiro_test(differences)
+ggqqplot(hsb2, "differences")
+```
+
+Vemos que el P-valor es mayor a 0.05, por lo que no rechazamos la hipótesis nula y, junto con el gráfico, podemos afirmar que hay normalidad en los datos.
+No comprobamos la homogeneidad de los datos debido a que como proceden de los mismo sujetos, asumimos que no existe mucha variabilidad.
+
+Lo siguiente es ajustar el modelo. Usamos la prueba T de student.
+```{r}
+t_test(score~test, data=hsb2.long, paired = TRUE)
+```
+Obtenemos que el P-valor es superior a 0.05, por lo que no podemos rechazar la hipótesis nula, y decimos que no existen diferencias de medias entre las pruebas de lectura y escritura.
+No hace falta por tanto calcular el tamaño del efecto porque sabemos que va a ser insignificante.Pero de usar usaríamos la Prueba d de Cohen
+```{r}
+cohens_d(score~test, data=hsb2.long, paired=TRUE)
+```
+
+
+Finalmente vemos la publicación de resultados. En este caso utilizaremos la función ggwithinstats, porque están dentro del grupo.
+```{r}
+library(afex)
+ggwithinstats(x=test, y=score, data=hsb2.long, bf.message = FALSE) + theme(text=element_text(size=8), plot.subtitle = element_text(size=8))
+```
+Concluimos con que no encontramos diferencias significativas en la calificación promedio de los alumnos entre las asignaturas de escritura y lectura.
+
+
+
+PRUEBA ROBUSTA DE YUEN PARA DOS MUESTRAS RELACIONADAS
+
+Para comparar la media de dos variables relacionadas con valores atípicos usamos la prueba robusta. Con los datos recortados en los extremos.
+Ejemplo. Comparar la calificación media (recortada) en escritura y lectura.
+Pregunta, ¿la diferencia de la media recortada es distinta/menor/mayor que 0?
+
+H0 ud =  / <= / >= 0
+H1 ud =/ / >  / <  0
+
+```{r}
+library(openintro)
+library(rstatix)
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(ggstatsplot)
+```
+
+```{r}
+hsb2 %>% select(write, read) %>% filter_all(all_vars(between(.,quantile(., .1), quantile(., .9)))) %>% get_summary_stats(type="mean_sd")
+```
+Vemos a priori que no hya mucha diferencia.
+Ahora creamos dos variables distintas con los valores de las anteriores: test(lectura o escritura) y score(nota).
+
+```{r}
+hsb2.long <- hsb2 %>% select(write, read) %>% pivot_longer(c(write, read), names_to = "test", values_to = "score")
+```
+
+```{r}
+hsb2.long %>% filter(between(score, quantile(score, .1), quantile(score, .9))) %>% ggboxplot(x="test", y="score", add="mean", add.params = list(color="red"))
+```
+
+Bien, ahora veremos si cumple los supuestos, ya que aunque sea robusta, también es paramétrica. Primero vemos la normalidad.
+```{r}
+hsb2 %>% mutate(differences= read - write) %>% filter(between(differences, quantile(differences, .1), quantile(differences, .9))) %>% shapiro_test(differences)
+```
+```{r}
+hsb2 %>% mutate(differences= read - write) %>% filter(between(differences, quantile(differences, .1), quantile(differences, .9))) %>% ggqqplot(x="differences")
+```
+
+Tanto en la prueba como en el gráfico vemos que no se cumple el supuesto de normalidad. 
+
+Ajustamos el modelo.
+```{r}
+library(DescTools)
+YuenTTest(x, y,
+          paired=TRUE, #para muestras relacionadas
+          trim= 0.2)   #nivel de recorte 20%
+```
+```{r}
+YuenTTest(x=hsb2$read, y=hsb2$write, paired = TRUE, trim = 0.2)
+```
+Vemos que el P-valor es menor a 0.05 por lo que rechazaráimos la hipótesis nula, y diríamos que existen diferencias significativas entre los grupos. Ahora bien, cuánta diferencia? para ello vemos el tamaño del efecto.
+Plantilla
+```{r}
+library(WRS2)
+dep.effect(x,          #primera muestra (vector numérico)
+           y,          #segunda muestra (vector numérico)
+           tr=0.2,     # nivel de recorte 20%
+           nboot=1000) # numero de muestras en bootstrap
+```
+```{r}
+set.seed(123)
+dep.effect(x=hsb2$read, y=hsb2$write, tr=0.2, nboot=10)
+```
+Debemos escoger un estadístico (Est), el cual elegiremos el primero, aunque ya veremos por qué. Aunque vemos que la diferencia es realmente pequeña. 
+Y finalmente para comunicar los resultados de la prueba:
+```{r}
+ggwithinstats(x=test, y=score, data = hsb2.long, tr=0.2, type="r", bf.message = FALSE) + theme(text=element_text(size=8), plot.subtitle = element_text(size=8))
+```
+En este gráfico vemos además de los resultados que hemos visto anteriormente, la distribución de cada grupo así como las medias.
+
+
+
+PRUEBA NO PARAMÉTRICA DE WILCOXON PARA DOS MUESTRAS RELACIONADAS
+
+vamos a repetir el ejemplo anterior, pero en el supuesto de que no se cumpla la normalidad. 
+Se usa para comparar los rangos (posición) de los valores en muestras relacionadas
+pregunta. La distribución de la variable A es distinta a la muestra B
+Hipotesis igual que ne el ejemplo anterior pero cpon distribución.
+
+Primero el analisis exploratorio.
+
+```{r}
+library(openintro)
+library(rstatix)
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(ggstatsplot)
+```
+
+```{r}
+hsb2 %>% select(write, read) %>% get_summary_stats(type="median_iqr")
+```
+```{r}
+hsb2.long <- hsb2 %>% pivot_longer(c(write, read), names_to="test", values_to="score") %>% arrange(test,id)
+ggboxplot(x="test", y="score", data=hsb2.long, add=c("median"), add.params=list(color="red"))
+```
+Vemos que a priori existe cierta diferencia.
+Al ser una prueba no paramétrica, deducimos que la diferencia entre la prueba de escritura y de lectura es simétrica.Para ello utilizamos un histograma con densidad.
+```{r}
+hsb2 %>% mutate(differences=read-write) %>% gghistogram(x="differences", y="..density..", fill="steelblue", add_density = TRUE) 
+```
+Vemos que en este caso es bastante simétrica. Por lo que se cumplen los supuestos de simetría (en realidad diria que es normalidad) y sin valores atípicos.
+Ajustamos el modelo. (plantilla igual que anteriormente)
+```{r}
+wilcox_test(score~test, data=hsb2.long, paired=TRUE)
+```
+Vemos que el P-valor es mayor a 0.05, por lo que no rechazaríamos la hipótesis nula, asumiendo que no existen diferencias en las distribuciones. 
+Para calcular el tamaño del efecto.
+```{r}
+wilcox_effsize(score~test, data=hsb2.long, paired=TRUE)
+```
+Como era de suponer, hay un tamaño del efecto muy bajo.
+Para comunicar los resultados.
+
+```{r}
+ggwithinstats(x=test, y=score, data=hsb2.long,
+              ggstatsplot.layer=FALSE, messages=FALSE,
+              type="np", #prueba NO PARAMETRICA (np)
+              bf.message = FALSE) + theme(text=element_text(size=8), plot.subtitle=element_text(size=8))
+```
+Aquí tenemos todos los datos resumidos.

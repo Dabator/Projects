@@ -1,0 +1,695 @@
+---
+title: "Cálculo e interpretación del PCA"
+author: "Daniel Barandiarán"
+date: '2022-06-08'
+output: html_document
+---
+
+Una vez has preparado de manera adecuada los datos para el PCA, vamos a ajustar el modelo, a visualizar las dimensiones y a describir las dimensiones seleccionadas tanto mediante estadísticos como gráficos biplot. Los estadísticos de calidad de la representación y la contribución a las dimensiones nos ayudarán a interpretar los gráficos.
+
+Luego veremos algunos ejemplos de aplicación del PCA: su utilización junto con el análisis cluster en la técnica HCPC para crear grupos de comportamiento similar, y su utilización para la creación de nuevas variables (no correlacionadas) para análisis de regresión múltiple.
+
+Finalizamos la lección creando informes automáticos de PCA en R
+
+El siguiente esquema resume los temas y funciones en R que veremos a lo largo de la lección:
+
+PCA
+- Análisis: PCA{FactoMineR}; fa.parallel{psych}; get_eigenvalue, fviz_screeplot; get_pca_var; get_pca_ind; fviz_cos2; fviz_contrib; fviz_pca_biplot{factoextra}; dimdesc{FactoMineR}
+- HCPC: HCPC{FactoMineR}; fviz_dend; fviz_cluster{factoextra}
+- Investigate{FactoInvestigate}
+
+
+
+Para realizar un PCA en R, vamos a utilizar la función PCA() del paquete FactoMineR, y para obtener gráficos avanzados utilizaremos el paquete factoextra.
+
+Plantilla
+```{r}
+PCA(X,               # X es un data frame (filas=individuos, columnas=variables)
+    scale.unit=TRUE, # Si es TRUE entonces los valores de las variables se escalan.
+    ncp=5,           # ncp es ellnúmero de dimensiones o componentes principales. Si no sabemos cuántos queremos se puede omitir.
+    graph=TRUE)      # graph es para graficar, si es TRUE se grafican los resultados.
+```
+
+
+Vamos a realizar un ejemplo con los datos decathlon2. Como habíamos planteado antes, vamos a seleccionar los primeros 23 individuos y las 10 especialidades(variables) para el análisis, y el resto se deja para información suplementaria.
+
+```{r}
+library(factoextra)
+library(FactoMineR)
+data("decathlon2")
+decathlon2_active <- decathlon2[1:23, 1:10]
+( res_pca <- PCA(decathlon2_active, graph=FALSE))
+```
+
+El objeto que se crea con la función PCA contiene información sobre los valores propios(eigenvalues), sobre las variables(comienzan por var), los individuos(ind), y sobre la llamada o la función que hemos utilizado(call). INformación como son las coordenadas, la  correlación con los ejes, el coseno cuadrado y la contribución. Veremos qué significan más adelante.
+
+Podemos ver un resumen del objeto creado.
+```{r}
+summary(res_pca)
+```
+
+Vemos los valores propios para 10 dimensiones, que miden la cantidad de variación que retiene cada componente principal. La primera dimension que retiene mayor variación, y por lo tanto explica más, es la que mayor valor va a tener en esta, siguiendo en orden decreciente por el resto ya que cada vez quedará menos variación por explicar.
+
+Se puede obtener toda esta información con:
+```{r}
+get_eigenvalue(res_pca)
+```
+
+Obtenemos una dimensión por cada variable.
+
+
+1. SELECCIONAR NÚMERO DE COMPONENTES PRINCIPALES
+
+Para determinar con cuántas dimensiones nos debemos quedar, no existe un único método, podemos utilizar:
+
+- Regla de Keiser-Guttman. tomar los valores propios > 1. Ya que si es >1 indica que en promedio el PC  da cuenta de más varianza que 1 de las variables originales en los datos estandarizados. Es decir, este criterio intenta retener los PC que expresan más variabilidad que cada una de las variables originales, retener aquellos que aporten información sustancial.
+
+- % Varianza explicada. considerar tantos PCs como el % de varianza total que queremos dar cuenta. Por ejemplo, si consideramos que un 70% de varianza total explicada es suficiente, podemos seleccionar para este ejemplo 3 PCs.
+
+- Gráfico de pantalla o sedimentación. Realizar un gráfico con los valores propios en función de los PC y busca el "codo" del gráfico, el punto de inflexión, donde los valores propios parecen estabilizarse. Los PC a la izquierda de este punto se consideran significativos (Jollife 2002, Peres-Neto et al 2005)
+
+- Analisis Paralelo de Horn. Contrasta la variabilidad expresada en el conjunto de datos original con la obtenida de conjuntos de datos generados aleatoriamente con características similares al original. Esta opción permite controlar posibles efectos de sesgo en la elección de número de PCs cuando el conjunto de datos es pequeño. (Horn 1965).
+
+Puedes evaluar todos estos criterios y ver si concuerdan. En la práctica tendemos a considerar pocos PCs para que la interpretación sea más sencilla, pero la elección también depende del área de estudio y del conjunto de datos.
+
+
+Ejemplos
+
+```{r}
+get_eigenvalue(res_pca)
+```
+Con esta función podemos ver los 2 primeros métodos.
+En nuestro caso, los 3 primeros PC tienen autovalores mayores que 1(regla Keiser-Guttman), y explican más del 70% de la variabilidad de los datos(% variabilidad explicada).
+
+
+Para el tercer método, Gráfico de pantalla o sedimentación.
+```{r}
+fviz_screeplot(res_pca)
+```
+
+En este ejemplo vemos que el codo se encuentra entre 2 y 5, dependiendo del criterio del investigador. Por lo tanto ese serái la elección de componentes.
+
+
+El último método, Análisis paralelo de Horn.
+```{r}
+library(psych)
+fa.parallel(decathlon2_active, fa="pc")
+```
+
+Este método nos muestra que con tan solo los dos primeros es suficiente, los que están por encima de la linea roja. La linea roja representa lo que ocurre por azar.
+
+En resumen, con estos datos podemos decir que con dos o tres PCs es suficiente.
+
+
+
+ESTUDIOS DE LAS VARIABLES (CARACTERÍSTICAS)
+
+Recuerda que el objetivo del PCA es encontrar un pequeño número de variables sintéticas que resuman muchas variables. En este apartado veremos cómo interpretar las relaciones entre las variables. ¿Cuándo podemos decir que 2 variables son similares (o distintas)?   
+
+- Para las variables interpretamos la similitud en términos de relaciones.
+- Las relaciones lineales son las más sencillas -> correlación
+- Visualizamos la matriz de correlaciones
+Objetivo: encontrar un pequeño número de variables sintéticas que resuman muchas variables.
+
+
+Para interpretar los resultados debemos buscar aquellas variables más importantes o relevantes para los ejes que hemos seleccionado. 
+
+Obtenemos la siguiente información con la función get_pca_var():
+```{r}
+( var <- get_pca_var(res_pca))
+```
+
+- coord. COORDENADAS de las variables en cada PC. Es la correlación de la variable con cada PC.
+- cos2. Representa la CALIDAD de la representación para las variables en cada PC. Corresponde al cuadrado de las coordenadas (coord^2),
+- contrib. Contiene la CONTRIBUCIÓN (en %) de la variable  en cada PC. Se calcula como la calidad de la variable dividido la calidad total del componente (cos2/sum(cos2)).
+
+
+Podemos graficar esta información en un mapa de variables con la función 
+fviz_pca_var():
+
+```{r}
+fviz_pca_var(res_pca, repel = TRUE)
+```
+
+- Eje=dimensión=componente principal(PC). Las variables se representan con una flecha desde el origen.
+
+- La correlación entre la variable y el PC se utiliza como coordenada en cada eje o PC. Fíjate que al ser una representación de la matriz de correlaciones los ejes van de -1 a 1. 
+
+- Existe un Círculo de correlación con circunferencia 1 (correlación perfecta), que sirve para identificar las variables con mayor correlación a cada eje.
+
+- Los ángulos (entre variables o entre variable y PC) se pueden interpretar como el signo de la correlación entre ellos.
+  - Ángulo pequeño = correlación positiva
+  - Ángulo grande = correlación negativa (posición opuesta)
+  - Ángulo 90º = sin cor.
+
+- El largo de la flecha (distancia) mide la *magnitud* de la correlación. La relación entre variables y componentes, aquellas flechas en que las variables estén en la misma dirección que el eje tendrán mayor correlación, ya sea positiva o negativa. Pero si además el tamaño de la flecha es larga diremos que está bien representada en dicho eje, y si es corta es que no es muy importante para dicho eje.
+
+
+Calidad
+
+Solo podemos interpretar aquellas variables bien proyectadas. corresponde a las coordenadas al cuadrado.
+```{r}
+fviz_cos2(res_pca, choice = "var", axes=1)
+fviz_cos2(res_pca, choice = "var", axes=2)
+```
+
+Si evaluamos la primera dimensión (eje horizontal), vemos que las 6 primeras variables son las mejores representadas, y hay 3 que son opuestas de las otras tres.
+En el caso de la dimensión 2, vemos que tan solo dos son las mejor representadas, y son las dos variables que están mas cercanas al eje vertical en dirección positiva.
+
+
+Contribución
+
+La contribución de las variables a los componentes se calcula como la calidad de la variable dividido entre la calidad total del componente, se expresa como un porcentaje.
+
+Las variables con mayor contribución a un PC son las más correlacionadas con él. Línea roja: contribución media esperada si fueran uniforme. 1/n (1/10=0.1, 10%)
+
+```{r}
+fviz_contrib(res_pca, choice = "var", axes = 1)
+fviz_contrib(res_pca, choice = "var", axes = 2)
+```
+
+Las variables que se correlacionan con los primeros componentes son los más importantes en explicar la variabilidad de los datos. Los que tienen una baja contribución son los menos importantes y podrían eliminarse del análisis. 
+Por tanto, las variables que se encuentran por encima de la linea roja se consideran importantes para el componente.
+
+
+
+dimdesc. Descripción de las variables
+
+Por último, la función dimdesc() de factominer nos permite describir las dimensiones o PC, identificando las variables asociadas significativamente a cada uno.
+
+- Correlaciones ordenadas
+- Significación de la correlación. (cor =/ 0 para nivel de confianza del 95%)
+
+```{r}
+library(FactoMineR)
+res_desc <- dimdesc(res_pca, axes=c(1,2), proba = 0.05)
+```
+
+```{r}
+res_desc$Dim.1
+```
+```{r}
+res_desc$Dim.2
+```
+
+Vemos las tablas las variables ordenadas según los valores de correlación para cada componente y el nivel de significación. Aparecen las mas significativas.
+
+
+
+ESTUDIOS DE LOS INDIVIDUOS (CASOS)
+
+Recuerda que otro de los objetivos del PCA es identificar grupos de individuos con perfiles similares o extremos. Vamos a ver cuándo podemos decir que ciertos individuos son similares (o distintos) respecto a todas las variables.
+
+Al igual que como ocurría con las variables, para los individuos podemos obtener la siguiente información con la función get_pca_ind():
+
+- coord. coordenadas (proyección) del individuo en cada PC.  
+- cos2. calidad de la representación en cada PC. (se calcula como coord^2),  
+- contrib. contribución (en %) del individuo a cada PC. (se calcula como cos2/sum(cos2))
+
+Podemos mapear los individuos en los primeros PC para ver su relación con la función fviz_pca_ind(). A diferencia del mapa de variables que utilizaba las correlaciones como coordenadas, los individuos u observaciones se representan mediante sus proyecciones en el mapa.
+
+```{r}
+fviz_pca_ind(res_pca, repel=TRUE)
+```
+
+Mapeamos en función de las dos primeros componentes.
+
+- Los individuos con valores promedio en todas las variables se colocarán en el centro del gráfico. Y a la inversa, esperamos que los individuos con valores extremos estarán lejos del centro.
+- Los individuos con valores similares (en las variables de estudio) se agruparán en el mapa. Y a la inversa, los individuos con perfiles distintos estarán lejos entre sí.
+
+
+Calidad de la representación
+
+La distancia entre individuos solo puede interpretarse para individuos bien proyectados (con alto cos2).
+
+```{r}
+fviz_cos2(res_pca, choice = "ind", axes = 1)
+fviz_cos2(res_pca, choice = "ind", axes = 2)
+```
+
+En la primera dimensión podemos decir que ¡los 5 primeros son los que tienen mejor representación. Y en la segunda dimensión los 8 primeros.
+
+
+Contribución a la representación
+
+Los individuos con mayor valor de coordenada contribuyen más al eje (alta contrib).
+
+```{r}
+fviz_contrib(res_pca, choice = "ind", axes = 1)
+fviz_contrib(res_pca, choice = "ind", axes = 2)
+```
+
+Los valores que se sitúan por encima de la línea roja son los que contribujen más al eje, por lo que tiene sentido su interpretación.
+
+
+
+RELACIÓN ENTRE VARIABLES E INDIVIDUOS. Biplot
+
+Podemos estudiar las variables y los individuos por separado pero lo más interesante es analizar sus relaciones. Vamos a ver cómo:
+
+- Caracterizar los grupos de individuos utilizando las variables.
+- Utilizar individuos "extremos" para entender mejor las relaciones entre variables.
+
+AL final, los objetivos del PCA es visualizar y resumir las relaciones. Además, estudiar las relaciones es útil cuando hay un número pequeño de variables e individuos.
+
+Para evaluar la relación entre variables e individuos podemos graficar conjuntamente variables e individuos en lo que llamamos biplot. Se trata de un mapa donde observamos dos representaciones de los datos: la de las variables (como flechas) y la de los individuos (como puntos).
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+fviz_pca_biplot(res_pca, repel=TRUE)
+```
+
+Ten en cuenta que las coordenadas de los individuos y las variables no se construyen en el mismo espacio, las variables utilizan las correlaciones y los individuos las proyecciones. Por lo tanto, para inferir la relación entre variables e individuos, solo puedes observar la dirección, no la distancia en el biplot.
+
+- Un individuo que está en el mismo lado de una variable tiene un alto valor en dicha variable
+- Un individuo que está en el lado opuesto de una variable tiene un valor bajo para esa variable.
+Recuerda además que solo puedes interpretar las variables e individuos con buena calidad y contribución en la representación.
+
+
+Interpretación ejes (PC1 y PC2)
+
+Horizontal (PC1)
+
+Para poder interpretar mejor el componente 1 vamos a seleccionar las variables e individuos más importantes.
+
+```{r}
+fviz_pca_biplot(res_pca, repel=T,
+                select.var=list(contrib=7),
+                select.ind=list(contrib=10),
+                ggtheme = theme_minimal())
+```
+
+Vemos por tanto que long.jump es la variable que más contribuye positivamente a la primera dimensión, Siendo Clay y Sebrle los individuos con mayor valor de esta variable. Mientras que las variables x100m y x110m contribuyen negativamente con individuos como Bourguignon. Es así como le PC1 divide unos deportistas yh otros según la disciplina/deporte.
+
+
+Vertical (PC2)
+
+La misma lógica se aplica al PC2. Las variables Pole.vault y x1500m está bien representadas y contribuyen positivamente a la dimensión 2.
+
+El PC2 separa a los deportistas de resistencia (Pole.vault y x1500m) como Clay, del resto.
+
+
+Informar los resultados
+
+Para informar de los resultados podemos decir:
+Se analizaron 23 atletas para 10 displinas deportivas.
+
+Según las variables que más contribuyen a cada componente, podemos decir que el componenete 1 separó los deportistas de velocidad(en distancias cortas) de los de potencia, mientras  que el componente 2 estuvo relacionado con disciplinas de resistencia.
+
+
+
+PERSONALIZACIÓN DE GRÁFICOS
+
+Cuando tenemos muchos individuos o muchas variables, puede ser interesante filtrar la información más importantes para simplificar la interpretación de los resultados del PCA. Esto lo puedes realizar con los argumentos select.ind y select.var de las funciones fviz_pca_...().
+Los valores pueden ser NULL, o una lista con el nombre de los argumentos, o valores de calidad como cos2, y contribución, contrib.
+
+ejemplo
+```{r}
+fviz_pca_var(res_pca,
+             select.var = list(cos2=0.6))
+```
+Con esto indicamos que queremos ver las variables con un valor de calidad de 0.6 o más.
+
+```{r}
+fviz_pca_var(res_pca,
+             select.var = list(cos2=6))
+```
+
+O con este ejemplo estamos pidiendo visualizar las 6 variables con mayor calidad.
+
+Si queremos visualizar unas variables en concreto podemos realizar una lista con los nombres de dichas variables.
+```{r}
+fviz_pca_var(res_pca, select.var=list(name=c("Long.jump", "High.jump", "X100m")))
+```
+
+También podemos visualizar las 5 variables y 5 individuos con mayor contribución.
+```{r}
+fviz_pca_biplot(res_pca,
+             select.var = list(contrib=5),
+             select.ind = list(contrib=5), repel=T)
+```
+
+
+Por defecto las variables e individuos se representan een las dimensiones 2 y 3. Si se desea se pueden seleccionar otras dimensiones, como por ejemplo 2 y 3. Esto se debe especificar en el argumento axes.
+```{r}
+fviz_pca_var(res_pca,
+             axes = c(2, 3))
+```
+
+
+IMPORTANTE
+
+Para guardar cualquier ggplot2, el código R estandar es el siguiente
+```{r}
+pdf("nombredelarchivo.pdf")
+{escribes todas las ordenes que quieras guardar}
+dev.off()
+```
+
+Por ejemplo.
+```{r}
+pdf("graficoPCA.pdf")
+scree.plot <- fviz_eig(res_pca) #gráfico de sedimentación
+ind.plot <- fviz_pca_ind(res_pca) #gráfico de individuos
+var.plot <- fviz_pca_var(res_pca) #gráfico de variables
+dev.off()
+```
+
+Se puede utilizar la función png("nombre.png"), si se desea guardar en dicho formato.
+
+
+Exportar los resultados en archivos txt o csv(delimitado por comas).
+
+Todas las salidas del PCA (coordenadas de individuos / variables, contribuciones, etc) se pueden exportar a la vez, en un archivo TXT/CSV.
+
+```{r}
+# Exportar TXT
+library(FactoMineR)
+write.infile(res_pca, "pca.txt", sep = "/t")
+```
+
+```{r}
+# Exportar CSV
+library(FactoMineR)
+write.infile(res_pca, "pca.csv", sep = ";")
+```
+
+Se utiliza setwd() para seleccionar el directorio de trabajo.
+
+
+
+INFORMACIÓN SUPLEMENTARIA
+
+Las variables e induviduos adicionales no influyen en los componentes principales del análisis.
+Para especificar individuos y variables adicionales, la función PCA() se puede usar de la siguiente manera:
+
+```{r}
+PCA(X, ind.sup = NULL, quanti.sup = NULL, quali.sup = NULL, graph = TRUE)
+```
+
+DONDE:
+X: el conjunto de datos. Las filas son individuos y las columnas son variables numéricas.
+- ind.sup: un vector numérico que especifica los índices de los individuos suplementarios
+- quanti.sup, quali.sup: un vector numérico que especifica, respectivamente, los índices de las variables cuantitativas y cualitativas
+gráfico: un valor lógico. Si es VERDADERO (TRUE), se muestra un gráfico.
+
+Si graficamos los resultados en un biplot, de forma predeterminada:
+
+- Las variables cuantitativas suplementarias se muestran en líneas color azul y discontinuas,
+- Los individuos suplementarios en puntos azules,
+- Para las variables cualitativas, se muestra el centro de cada categoría y se pueden graficar los elipses de confianza. 
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+res_pca_all <- PCA(decathlon2,
+                   graph = FALSE,
+                   ind.sup=24:27,
+                   quanti.sup=11:12,
+                   quali.sup = 13)
+```
+
+```{r}
+res_pca_all
+```
+
+```{r}
+library(factoextra)
+fviz_pca_biplot(res_pca_all, repel = T)
+```
+
+Vemos entonces en azul más oscuro, las variables e individuos suplementarios. Así como la relación con los demás, como ya se explicó.
+
+
+Descripción del primer PC
+
+```{r}
+desc_pca_all <- dimdesc(res_pca_all, axes = c(1, 2))
+desc_pca_all$Dim.1
+```
+
+Vemos que la variable puntos está altamente correlacionada con la dimensión 1 y que es positiva. Y por el otro lado, la correlación más alta y negativa es de ranking. Esto tiene sentido ya que a más puntos, más cercano del 1 están los competidores.
+
+En cuanto a la única variable cualitativa, competición, vemos que es significativa respecto a la primera dimensión y que explica la variabilidad de los datos en esta dimensión en un 40%.
+
+Y por último, vemos que la competición olympic tiene mayor valor estimado que la competición decastar.
+
+```{r}
+desc_pca_all$Dim.2
+```
+
+En el caso de las segunda dimensión no vemos que haya ninguna de las variables suplementarias.
+
+
+
+ALTERNATIVAS AL PCA
+
+En algunos casos, puede que necesites utilizar una herramienta alternativa para ordenar/reducir tus datos, veremos qué opciones tenemos.
+
+- Análisis de componentes principales (PCA). Organiza los datos por ejes principales según las medidas de distancia.
+
+- Análisis de coordenadas principales o Escalado multidimensional no métrico (PCO o NMSD). Organiza los datos por ejes principales según las medidas de distancia.
+
+- Escalado multidimensional métrico (MDS). Organiza los datos para que las distancias en la gráfica 2D sean lo más similares posible a las distancias multivariadas originales. Los datos se basan en rangos, no en distancias euclidianas, por lo que a diferencia de PCA, no preservará la distancia entre puntos.
+
+- Análisis de variables canónicas (CVA) o análisis de función discriminante (DFA). Encuentra la mejor separación entre grupos.
+
+- Análisis discriminante lineal (LDA). Separa dos o más clases de datos mediante una combinanción lineal de características.
+
+- El análisis de correspondencia (CA). Es una extensión que analiza tablas de contingencia de variables categóricas (i.e. cualitativas).
+
+- El análisis factorial (FA). Analiza variables de ambos tipos, continuas y categóricas.
+
+
+
+AGRUPACIÓN JERÁRQUICA DE LOS COMPONENTES PRINCIPALES (HCPC).
+
+El PCA se puede utilizar como un paso de preprocesamiento antes de realizar métodos de agrupación, con el fin de eliminar el ruido de los datos y que la agrupación sea más estable que la obtenida de la distancias originales.
+
+Lo más interesante para eliminar el ruido sería realizar la agrupación sobre los primeros componentes principales. Las primeras dimensiones extraen lo esencial de la información, mientras que los últimos se limitan a recoger el ruido, por tanto sin ruido en los datos, la agrupación será más estable.
+
+Algoritmo del método HCPC:
+1. Realiza un PCA para reducir el número de variables y eliminar el ruido en los datos.
+2. Realiza una agrupación sobre los componentes principales seleccionados para crear grupos a partir del árbol de agrupación (dendrograma).
+3. Caracteriza los grupos para interpretar la agrupación.
+
+
+1. PCA para un número de dimensiones seleccionada
+
+```{r}
+res_pca_all2 <- PCA(decathlon2, ncp=2, graph=FALSE,
+                    ind.sup = 24:27,
+                    quanti.sup = 11:12,
+                    quali.sup = 13)
+fviz_screeplot(res_pca_all2)
+```
+
+Escogemos 2 componentes principales
+
+
+2. Agrupación jerárquica sobre los componentes principales.
+
+```{r}
+HCPC(res, 
+     nb.clust = 0,
+     min = 3,
+     max = NULL,
+     graph = TRUE)
+```
+res: El resultado de un análisis factorial o un marco de datos.
+nb.clust: un número entero que especifica el número de clústeres. Los posibles valores son:
+0: el árbol se corta al nivel en el que el usuario hace clic
+-1: el árbol se corta automáticamente al nivel sugerido
+cualquier positivo: el árbol se corta con nb.clusters clusters
+min, max: el número mínimo y máximo de clústeres que se generarán, respectivamente
+graph: si es TRUE, se muestran gráficos
+
+```{r}
+#para seleccionar un número automático de grupos
+hcpc <- HCPC(res_pca_all2, nb.clust = -1, graph = FALSE)
+```
+
+```{r}
+fviz_dend(hcpc, rect=TRUE, rect_fill = TRUE)
+```
+
+Vemos los grupos de atletas que se han formado, siendo el rojo y el verde más parecidos y el azul y el morado igual. 
+
+```{r}
+fviz_cluster(hcpc, show.clust.cent = TRUE)
+```
+
+En este gráfico podemos observar que la primera dimensión separa los grupos rojo y verde del azul y morado. Mientras que la segunda dimensión separa el grupo amarillo del resto.
+
+Tambien podemos realizar un gráfico tridimensional.
+```{r}
+plot(hcpc, choice="3D.map", ind.names=FALSE)
+```
+
+
+
+3. Descripción/caracterización de los grupos.
+
+Para caracterizar aún más los grupos, vemos los resultados que se muestran con la función hcpc.
+```{r}
+hcpc
+```
+
+- data.clust: Los datos originales con una columna complementaria llamada clase que contiene la partición.
+- desc.var: Las variables que describen los clústeres
+- desc.ind: Los individuos más típicos de cada grupo
+- desc.axes: Los ejes que describen los clústeres
+
+
+
+Variables cuantitativas que describen mejor a cada grupo.
+
+- Variables categóricas que caracterizaron a los grupos
+- Descripción de cada grupo por cada categoría de todas las variables categóricas. 
+```{r}
+hcpc$desc.var$category
+```
+
+Solo se muestran los resultados significativos para un nivel de confianza del 95%. 
+
+En el grupo 1 vemos: 
+- Que el 36% de los individuos que participaron en la competición decastar pertenecen al grupo 1.
+- El 100% del grupo 1 perteneció a la competición decastar
+- Y el 47% del total de individuos perteneció a la competición decastar.
+
+Y para la competicón olímpica lo mismo pero con esos numeros.
+
+Variables cuantitativas que describen mejor a cada grupo.
+
+Descripción global de los grupos por las variables cuantitativas: tamaño del efecto (cor^2) y P-valor de la prieba F.
+
+```{r}
+hcpc$desc.var$quanti.var
+```
+
+Tenemos las variables con mayor Eta2 (correlación al cuadrado) respecto a los grupos creados.
+
+Para ver la descripción de cada grupo por las variables cuantitativas.
+
+```{r}
+hcpc$desc.var$quanti
+```
+
+Aquí podemos fijarno en la segunda y tercera columna de cada grupo. En ellos vemos la media de las puntuaciones de cada categoría, teniendo desde más arriba aquellas categorias en las que destacan sobre la media total de individuos, y más abajo lo contrario.
+
+
+También podemos observar las dimensiones principales asociadas a los grupos. 
+```{r}
+hcpc$desc.axes
+```
+
+Nos volvemos a fijar en la segunda y tercera columna de cada grupo. Por ejemplo, el primer grupo se relaciona con la primera dimensión de forma negativa, por lo que se localizará en la izquierda del gráfico/eje de la primera dimensión. El segundo grupo se relaciona de forma positiva con la segunda dimensión, situándose a la derecha del eje. y asi con todas.
+
+
+Por último, podemos describir los grupos indentificando los principales individuos de cada grupo. 
+```{r}
+hcpc$desc.ind$para
+```
+
+Obtenemos que en el primer grupo destacan 4 individuos, siendo Martineau el primero, situaándose a 0.92 del balicentro del grupo. Lo mismo podemos decir de Schoenbeck, que destaca en el grupo 2 y así con todos.
+
+```{r}
+hcpc$desc.ind$dist
+```
+
+Por último el objeto dist, mide qué tan lejos está un individuo de otros grupos, a esto se le llama especificidad de los individuos. Por ejemplo, Bourguignon es el más lejano de otros grupos, situándose a una distancia de 3.97 del balicentro del grupo más cercano. Bourguignon por tanto es el que más lejos se encuentra y no podría pertenecer a otro grupo más que a ese.
+
+
+
+Para mostrar los datos originales con asignaciones de clúster, escriba esto:
+
+```{r}
+head(res.hcpc$data.clust, 10)
+```
+
+
+REGRESIÓN CON COMPONENTES PRINCIPALES
+
+Como se mencionó anteriormente, el PCA puede ser un paso de preparación para un análisis adicional. Puede, por ejemplo, resolver un problema de multicolinealidad en un análisis de regresión. 
+Recuerda que la multicolinealidad de los predictores
+hace que las estimaciones de la regresión sean inestables.
+
+
+Ejemplo
+
+Creamos un modelo con todos las variables, siendo la variable respuesta Points. Seleccionando como datos los 23 primeros atletas y descartando las variables número 11 y 13.
+
+```{r}
+model1 <- lm(Points~. , data = decathlon2[1:23, c(1:10,12)])
+library(car)
+vif(model1)
+```
+Realizamos la función vif, el cuál nos dice si existen problemas de multicolinealidad en las variables. Si el valor supera el 2 o el 4, según el criterio, diriamos que existen problemas. Vemos en nuestro caso que hay bastantes variables con valores superiores.
+
+```{r}
+summary(model1)$adj.r.squared
+```
+Vemos también el que ajuste del R2 es demasiado bueno, lo cual es indicio de problema de multicolinealidad.
+
+Podemos realizar un análisis de regresión con un pequeño número de componentes principales como predictores, en lugar de utilizar un gran número de predictores correlacionados. De este modo podemos evitar problemas de multicolinealidad, que vuelven inestables las estimaciones del modelo de regresión. 
+
+Realizamos PCA para nuestros indv, y variables. Como hemos visto anteriormente seleccionaremos los dos primeros componentes principales para poder explicar al menos 60% de la variación de los datos. Posteriormente guardamos las coordenadas de los individuos de los 2 componentes principales para obtener los valores. Entonces realizamos un modelo lineal con los  valores de los dos componentes principales como variables explicativas.
+
+```{r}
+library(FactoMineR)
+res_pca <- PCA(decathlon2[1:23, 1:10], graph=FALSE) 
+PCs <- res_pca$ind$coord[,1:2] #Para acceder a los nuevos valores para los componentes principales
+model2 <- lm(decathlon2[1:23, "Points"] ~ PCs[,1] + PCs[,2])
+vif(model2)
+```
+```{r}
+summary(model2)$adj.r.squared
+```
+
+Debido a que los componentes no están correlacionados por construcción, todos los factores de inflación de la varianza son iguales a 1 ahora.
+
+A pesar de que es una técnica útil cuando tenemos problemas de multicolinealidad, ten en cuenta que la interpretación de los coeficientes de regresión ahora es algo más compleja, porque se refieren a los componentes y no a las variables originales directamente.
+
+```{r}
+summary(model2)
+```
+
+Vemos que apesar de utilizar los dos primeros componentes, tan solo el primero es significativo. Recordamos que este componente reflejaba los deportes de rapidez en positivo de los de fuerza en negativo.
+
+
+
+INFORMES PCA AUTOMÁTICOS
+
+Por último, en R existe una herramienta rápida para crear informes automáticos con sus interpretaciones sobre cualquier conjunto de datos. Veamos cómo crear informes PCA automáticos en segundos.
+
+El paquete FACTOINVESTIGATE facilita la generación de un informe automático y la interpretación del análisis de componentes principales basados en FactoMineR. La función principal proporcionada por el paquete es la función Investigate(), que se puede utilizar para crear un informe en Word, PDF o HTML.
+
+El informe incluye:
+
+- Detección de valores atípicos existentes,
+- Identificación de los principales componentes principales,
+- Parcelas/gráficos
+- Descripción de dimensiones
+
+```{r}
+install.packages("FactoInvestigate")
+```
+```{r}
+library(FactoMineR)
+library(FactoInvestigate)
+```
+
+
+Debemos realizar el PCA como de costumbre y despues realizar el informe con la función Investigate()
+
+```{r}
+res_pca_all <- PCA(decathlon2, graph=FALSE, quanti.sup = 11:12, quali.sup = 13)
+
+Investigate(res_pca_all, file = "PCA.Rmd", 
+            document = "pdf_document",
+            parallel = TRUE)
+```
+
+
+Al parecer es un informe muuy detallado.

@@ -1,0 +1,172 @@
+---
+title: "tidyverse"
+author: "Daniel Barandiarán"
+date: "24 de noviembre de 2021"
+output: html_document
+---
+
+```{r}
+library(tidyr)
+
+library(tidyselect)
+
+```
+
+```{r}
+library(dplyr)
+data(storms)
+str(storms)
+```
+
+
+```{r}
+data("iris")
+iris %>% filter(Species=="versicolor") %>% select(Species, Sepal.Length) %>% head() #concatenar funciones con %>% (tuberías)
+```
+
+```{r}
+#cambiar de modo data frame a tipo tibble
+as_tibble(storms)
+```
+
+```{r}
+#seleccionar subconjunto de variables, ejemplos:
+select(iris, Species,Sepal.Width) %>% head(1)
+select(iris, -Species) %>% head(1) # simbolo "-" (guión) sirve para eliminar dicha variable/columna de la funcion
+
+```
+```{r}
+irisprueba <- select(iris, Species, Petal.Width)
+irisprueba
+```
+```{r}
+#funciones de select, seleccionar columnas:
+"select(iris,*contains*("."))" #cuyos nombres de columnas contengan "."
+"select(iris,eds_with("Length") )"
+"select(iris,everything() )"
+"select(iris,matches(.t.) )" #los que contengan .t.
+"select(iris, num_range("x", 1:5))"#x1,x2,x3,x4,x5
+"select(iris, one_off(c("Species","Genus")))"
+"select(iris, starts_with("Sepal"))"
+"select(iris, Sepal:Length:Petal.Width)" #todas las columnas entre una y otra
+```
+
+```{r}
+storms %>% select(name,year,status) %>% tail()
+```
+```{r}
+storms %>% select(-lat, -long) %>% tail()
+```
+```{r}
+#ordenar columnas segun orden
+storms %>% select(lat, long, everything()) %>% 
+  tail()
+```
+```{r}
+storms %>% select(starts_with("l")) %>% head()
+storms %>% select(ends_with("er")) %>% tail()
+storms %>% select(contains("on")) %>% head()
+
+
+```
+```{r}
+storms %>% select_if(is.numeric) %>% glimpse() #glimpse muestra la estructura de satos creado
+
+```
+```{r}
+storms %>% select_if(is.factor) %>% glimpse()
+```
+
+```{r}
+iris %>% filter(Species=="setosa", Sepal.Length >= 4) %>% head(2)
+```
+
+```{r}
+#seleccionar una variable categórica
+storms %>% select(name, status, category, wind) %>% filter(name == "Caroline") %>% head()
+```
+
+```{r}
+#seleccionar dos valores de la misma variable categórica de manera "O" y no "Y" 
+storms %>% select(name, status, category, wind) %>% filter(name %in% c("Caroline", "Amy")) %>% str()
+```
+```{r}
+#seleccionar más de una variable numérica
+storms %>% select(name, status, category, wind) %>% filter(wind > 70, wind < 90, category == 2) %>% head()
+```
+```{r}
+#seleccionar un intervalo de una variable
+storms %>% select(name, status, category, wind) %>% filter(between(wind, 50, 70)) %>% head()
+```
+
+```{r}
+#seleccionar un valor de una variable junto a sus valores cercanos
+storms %>% select(name, status, category, wind) %>% filter(near(wind, 70, tol = 10)) %>% head()
+```
+```{r}
+#seleccionar un valor de una variable junto a sus valores cercanos, en concreto la desviación típica "sd" (26,21)
+sd(storms$wind)
+storms %>% select(name, status, category, wind) %>% filter(near(wind, 70, tol = sd(wind))) %>% head()
+```
+         
+```{r}
+iris %>% arrange(desc(Petal.Width)) %>% head() #ordena de forma ascendente una de las variables, si añadimos parametro "desc" lo hará de forma descendente
+```
+         
+         
+```{r}
+storms %>% select(category, name, status, lat) %>% arrange(lat, category) %>% tail()
+```
+
+```{r}
+iris %>% mutate(PetalW = Petal.Width/100) %>% glimpse() #crear nueva variable a partir de las existentes
+```
+
+```{r}
+storms %>% select(name, wind) %>% mutate(windKm = wind * 1.82) %>% head()
+```
+
+```{r}
+storms %>% select(name, wind) %>% mutate(wind = wind * 1.82) %>% head()
+#transformar directamente una variable en otra
+```
+
+```{r}
+storms %>% mutate(status_ts = ifelse(status == "tropical storm", 1,0)) %>% glimpse() 
+#crear nueva variable con la condicion de si es "x" toma valores "a", en caso positivo, o "b" en el negativo
+```
+
+```{r}
+storms_new <- storms %>% mutate(wind_ca = case_when(wind <= 40 ~ "bajo",
+                                      wind > 40 & wind <= 65 ~ "medio",
+                                      wind > 65 ~ "alto"))
+storms_new$wind_ca <- as.factor(storms_new$wind_ca)
+glimpse(storms_new)
+summary(storms_new$wind_ca)
+#crear nueva variable categórica con intervalos
+```
+
+```{r}
+#mutate_all/transmutate_all -> aplica la funcion a todas las variables
+#mutate_at "  "  ->aplica una función a columnas especificas seleccionadas con un vector de caracteres 
+#mutate_if "  "  -> aplica una funcion a las columnas seleccionadas con una funcion donde la condicion sea true
+
+#con summarise tambien se pueden usar las funciones anteriores, summarise_all, etc.
+```
+
+```{r}
+iris %>% group_by(Species) %>% summarise(mean(Sepal.Width)) #agrupar segun una variable, y obtener algun descriptivo o funcion de otra variable.
+```
+
+```{r}
+storms %>% summarise(n(), MAX = max(wind), AVG = mean(wind), MIN = min(wind))
+```
+
+```{r}
+storms %>% select(status, wind) %>% group_by(status) %>% summarise(MAX = max(wind), AVG = mean(wind), MIN = min(wind)) #no necesario usar select si cogemos todo el conjunto de datos
+```
+
+```{r}
+storms %>% select(status, wind, month) %>% group_by(status, month) %>% summarise(MAX = max(wind), AVG = mean(wind), MIN = min(wind)) #agrupar con varias variables
+```
+
