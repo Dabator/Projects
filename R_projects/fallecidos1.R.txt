@@ -1,0 +1,44 @@
+
+> basefalle <- readXL("C:/Users/Antenas_ITB/Desktop/TFG/tfg/basem.xlsx", rownames=TRUE, header=TRUE, na="", 
++   sheet="Hoja1", stringsAsFactors=TRUE)
+
+> editDataset(basefalle)
+
+> editDataset(basefalle)
+
+> editDataset(basefalle)
+
+> editDataset(basefalle)
+
+> library(rpart)
+
+> modelo1f <- rpart(FALLE ~., data = Dataset)
+
+> modelo1f <- rpart(FALLE ~., data = basefalle)
+
+> modelo1f
+n= 147 
+
+node), split, n, deviance, yval
+      * denotes terminal node
+
+ 1) root 147 42954.620  7.630884  
+   2) MED< 2.58685 97  2218.371  2.461340 *
+   3) MED>=2.58685 50 33115.050 17.659800  
+     6) MIG< 161318 36 15952.560  9.808889  
+      12) DENSI< 234.4628 29  1385.009  5.487931 *
+      13) DENSI>=234.4628 7 11782.960 27.710000 *
+     7) MIG>=161318 14  9237.753 37.847860 *
+
+> library(rpart.plot)
+
+> rpart.plot(modelo1f, main="¿Qué afecta al número de muertes?", ycompress=TRUE, extra=1,branch=1, cex=0.7, varlen=0, digits=4, round=0, shadow.col="gray", xsep=" / ", split.suffix=" ?", split.box.col="lightgray",  split.border.col="darkgray", split.round=.5, yesno.yshift=0.6, eq=" ",lt=" < ", ge=" >= ")
+
+> rpart.plot(modelo1f, main="¿Qué afecta al número de muertes?", ycompress=TRUE, extra=1,branch=1, cex=0.7, varlen=0, round=0, shadow.col="gray", xsep=" / ", split.box.col="lightgray",  split.border.col="darkgray", split.round=.5, yesno.yshift=0.6, eq=" ",lt=" < ", ge=" >= ")
+
+> rpart.plot(modelo1f, main="¿Qué afecta al número de muertes por Covid-19?", extra=1, branch=1, cex=0.7, varlen=0, digits=4, round=0, shadow.col="gray", xsep=" / ", split.suffix=" ?", split.box.col="lightgray",  split.border.col="darkgray", split.round=.5, yesno.yshift=0.6, eq=" ",lt=" < ", ge=" >= ")
+
+> rpart.plot(modelo1f, main="¿Qué afecta al número de muertes por Covid-19?", extra=1, branch=1, cex=0.7, varlen=0, digits=6, round=0, shadow.col="gray", xsep=" / ", split.suffix=" ?", split.box.col="lightgray",  split.border.col="darkgray", split.round=.5, yesno.yshift=0.6, eq=" ",lt=" < ", ge=" >= ")
+
+> rpart.plot(modelo1f, main="¿Qué afecta al número de muertes por Covid-19?", extra=1, branch=1, varlen=0, digits=3, round=0, shadow.col="gray", xsep=" / ", split.suffix=" ?", split.box.col="lightgray",  split.border.col="darkgray", split.round=.5, yesno.yshift=0.6, eq=" ",lt=" < ", ge=" >= ")
+

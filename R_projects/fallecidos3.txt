@@ -1,0 +1,46 @@
+
+> basefalle3 <- readXL("C:/Users/Antenas_ITB/Desktop/TFG/tfg/modelos/basem_4.xlsx", rownames=TRUE, header=TRUE,
++    na="", sheet="Hoja1", stringsAsFactors=TRUE)
+
+> library(rpart)
+
+> rpart.plot(modelo)
+
+> library(rpart.plot)
+
+> modelo3f <- rpart(FALLE ~., data = basefalle3)
+
+> modelo3f
+n= 147 
+
+node), split, n, deviance, yval
+      * denotes terminal node
+
+1) root 147 42954.620  7.630884  
+  2) MIG< 79999 112 16250.220  3.509286  
+    4) URB< 92.144 105  1449.835  2.372381 *
+    5) URB>=92.144 7 12628.900 20.562860 *
+  3) MIG>=79999 35 18713.440 20.820000  
+    6) GASTO< 8.3 17  2167.415  7.913529 *
+    7) GASTO>=8.3 18 11039.730 33.009440 *
+
+> editDataset(basefalle3)
+
+> modelo3f <- rpart(FALLE ~., data = basefalle3)
+
+> modelo3f
+n= 147 
+
+node), split, n, deviance, yval
+      * denotes terminal node
+
+ 1) root 147 42954.6200  7.630884  
+   2) MIG< 79999 110  5661.0120  2.957727  
+     4) URB< 80.129 91   917.4015  2.026923 *
+     5) URB>=80.129 19  4287.1560  7.415789 *
+   3) MIG>=79999 37 27749.6400 21.524050  
+     6) DENSI< 238.4821 30  9374.3260 15.820330  
+      12) MORTA< 7.8 18  2086.0020  9.810000 *
+      13) MORTA>=7.8 12  5662.7390 24.835830 *
+     7) DENSI>=238.4821 7 13216.6000 45.968570 *
+
