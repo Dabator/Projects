@@ -1,0 +1,299 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(readxl)
+train <- read.csv("train.csv")
+test <- read.csv("test.csv")
+View(train)
+View(test)
+```
+```{r}
+str(train)
+```
+```{r}
+table(train$Survived)#proporción absoluta de supervivientes
+prop.table(table(train$Survived))#proporción relativa de supervivientes
+```
+```{r}
+table(train$Sex)
+prop.table(table(train$Sex))
+```
+```{r}
+test$Survived <- 0 # crear variable predictora igual a 0
+test$Survived[test$Sex == 'female'] <- 1 # condicionar el sexo mujer con asignación 1 en la variable predictora
+
+```
+```{r}
+submit <- data.frame(PassengerId= test$PassengerId, Survived= test$Survived) #crear un nuevo conjunto de datos para enviar con las variables Id y Survived del conjunto test
+
+write.csv(submit, file = "femalesSurvived.csv", row.names = FALSE) #guardar ese conjunto para enviar en formato .csv
+```
+
+```{r}
+summary(train$Age)
+```
+```{r}
+train$nino <- 0
+train$nino[train$Age <= 18] <-1
+train$nino <- factor(train$nino)#añadir variable niño
+```
+```{r}
+test$nino <- 0
+test$nino[test$Age <= 18] <-1
+test$nino <- factor(test$nino)
+```
+
+```{r}
+aggregate(Survived ~ nino + Sex, data=train, FUN = function(x){sum(x)/length(x)}) #agregar en una tabla dos variables respecto de otra
+```
+```{r}
+train$farebin[train$Fare<=10]<-"<=10" #añadir variable con condicionante
+train$farebin[train$Fare>=10&train$Fare<20]<-"entre 10 y 20"
+train$farebin[train$Fare>=20&train$Fare<30]<-"entre 20 y 30"
+train$farebin[train$Fare>=30]<-">=30"
+
+test$farebin[test$Fare<=10]<-"<=10" #añadir varitestable con condicionante
+test$farebin[test$Fare>=10&test$Fare<20]<-"entre 10 y 20"
+test$farebin[test$Fare>=20&test$Fare<30]<-"entre 20 y 30"
+test$farebin[test$Fare>=30]<-">=30"
+table(train$farebin)
+```
+```{r}
+aggregate(Survived~ farebin + Pclass + Sex, data=train, FUN= function(x){sum(x)})
+```
+```{r}
+test$Survived <- 0 # crear variable predictora igual a 0
+test$Survived[test$Sex == 'female'] <- 1
+test$Survived[test$Sex == 'female'&test$Pclass == "3"&test$Fare >= 20] <- 0 # condicionar el sexo mujer con asignación 1 en la variable predictora
+```
+
+```{r}
+submit <- data.frame(PassengerId= test$PassengerId, Survived= test$Survived) #crear un nuevo conjunto de datos para enviar con las variables Id y Survived del conjunto test
+
+write.csv(submit, file = "femalesSurvivedexcept class3andfare.csv", row.names = FALSE) #guardar ese conjunto para enviar en formato .csv
+```
+
+```{r}
+train <- read.csv("train.csv",stringsAsFactors = FALSE)
+test <- read.csv("test.csv",stringsAsFactors = FALSE)
+
+test$Survived <- NA #añadir variable con valores NA
+
+all <- rbind(train, test) #juntar en un data las filas de dos datas
+
+View(all)
+```
+
+```{r}
+strsplit(all$Name[1], split='[,.]')
+strsplit(all$Name, split='[,.]')[[1]][2] #ejemplos de división la variable Name por comas y puntos
+```
+
+```{r}
+all$title <- sapply(strsplit(all$Name, split='[,.]'), function(x) x[2], simplify=F) #insertar variable a partir de otra, separando por comas y puntos
+
+
+``` 
+```{r}
+all$apellidos <- sapply(strsplit(all$Name, split='[,.]'), function(x) x[1], simplify=F)
+all$apellidos <- as.character(all$apellidos)
+```
+
+```{r}
+all$title[all$title == "the Countess"] <- "Others"
+table(all$title)
+
+```
+```{r}
+require(stringr)
+example(str_trim)
+all$title<-str_trim(all$title) #eliminar el espacio antes del valor de la variable
+```
+```{r}
+paste(all$title) #ver si hay espacios antes o despues del valor
+```
+
+
+```{r}
+all$FamilySide <- all$SibSp+all$Parch 
+```
+
+```{r}
+all$EstadoPersonal <- "soltero"
+all$EstadoPersonal[all$SibSp == 1 & all$Parch == 0] <- "pareja"
+all$EstadoPersonal[all$SibSp == 0 & all$Parch >= 1] <- "F.Mono"
+all$EstadoPersonal[all$SibSp + all$Parch >= 3] <- "F.Med"
+all$EstadoPersonal[all$SibSp + all$Parch >= 5] <- "F.Num"
+
+```
+```{r}
+all$Embarked[all$Embarked==""] <- "C"
+
+
+```
+
+```{r}
+all$farebin[all$Fare<=5]<-"<=5" #añadir variable con condicionante
+all$farebin[all$Fare>=5&all$Fare<10]<-"entre 5 y 10" 
+all$farebin[all$Fare>=10&all$Fare<20]<-"entre 10 y 20"
+all$farebin[all$Fare>=20&all$Fare<30]<-"entre 20 y 30" 
+all$farebin[all$Fare>=30&all$Fare<40]<-"entre 30 y 40"
+all$farebin[all$Fare>=40&all$Fare<50]<-"entre 40 y 50" 
+all$farebin[all$Fare>=50]<-">=50"
+```
+```{r}
+all$nino <- 0
+all$nino[all$Age <= 14] <- 1
+all$nino <- factor(all$nino)
+```
+
+```{r}
+train$EstadoPersonal <- "soltero"
+train$EstadoPersonal[train$SibSp == 1 & train$Parch == 0] <- "pareja"
+train$EstadoPersonal[train$SibSp == 0 & train$Parch >= 1] <- "F.Mono"
+train$EstadoPersonal[train$SibSp + train$Parch >= 3] <- "F.Med"
+train$EstadoPersonal[train$SibSp + train$Parch >= 5] <- "F.Num"
+
+test$EstadoPersonal <- "soltero"
+test$EstadoPersonal[test$SibSp == 1 & test$Parch == 0] <- "pareja"
+test$EstadoPersonal[test$SibSp == 0 & test$Parch >= 1] <- "F.Mono"
+test$EstadoPersonal[test$SibSp + test$Parch >= 3] <- "F.Med"
+test$EstadoPersonal[test$SibSp + test$Parch >= 5] <- "F.Num"
+```
+
+
+```{r}
+library(ggplot2)
+```
+
+
+```{r}
+grafic <- ggplot(all[1:891,], aes(x=FamilySide, fill=factor(Survived)))
+grafic <- grafic + facet_grid(cols=vars(Sex))
+grafic <- grafic + geom_bar(stat="count")
+grafic <- grafic + ggtitle("Survived comparative") + labs(y="Survived count")
+grafic
+```
+```{r}
+grafic <- ggplot(all[1:891,], aes(x=EstadoPersonal, fill=factor(Survived)))
+grafic <- grafic + geom_bar(stat="count")
+grafic <- grafic + ggtitle("Survived comparative") + labs(y="Survived count")
+grafic
+ggsave("Supervivientes por estado personal.png")
+
+```
+```{r}
+mean(all$Age, na.rm=TRUE)
+all$Age[is.na(all$Age)] <- 29.88 #sustituir valores faltantes NA
+
+summary(all$Age)
+```
+
+```{r}
+all$Survived <- factor(all$Survived)
+
+train <- all[1:891,]
+test <- all[892:1309,]  
+```
+```{r}
+library(caret)
+```
+
+```{r}
+summary(train)
+```
+```{r}
+library(kknn)
+library(svmpath)
+library(C50)
+library(nnet)
+library(rpart)
+library(rpart.plot)
+```
+```{r}
+set.seed(288) #Semilla
+train_control_example <- trainControl(method="cv",number = 10) #Cross-Validation
+RF <- train(Survived ~ title + Pclass + Sex + Age + 
++ Fare + Embarked, data=train, trControl = train_control, method="rf")
+RF #Mostramos el modelo entrenado
+```
+```{r}
+importance <- varImp(RF, scale=FALSE)#IMPORTANCIA DE CADA VARIABLE
+
+plot(importance) 
+```
+
+
+```{r}
+set.seed(100) #Semilla
+train_control <- trainControl(method="cv",number = 10) #entrenamiento con validacion cruzada
+
+```
+```{r}
+
+KKNN <- train (Survived ~ Pclass + Sex+ Age + SibSp + Parch + Fare + title + FamilySide + farebin + nino,data =train, method = "kknn", trControl = train_control) #Metodo redes neuronales
+KKNN
+```
+
+```{r}
+Rfc <- train (Survived ~ Pclass + Sex+ Age + SibSp + Parch + Fare + Cabin + title + FamilySide + EstadoPersonal + farebin + nino, data =train, method = "rf", trControl = train_control, verbose = FALSE) #Metodo Random Forest
+Rfc
+```
+```{r}
+importanc <- varImp(NN, scale=FALSE)
+
+plot(importanc) 
+
+
+```
+```{r}
+model.lm<-lm(Survived ~ Pclass + Sex + Age + Fare + title + FamilySide + apellidos + tipo + Embarked,data=train)
+modelo.cart<- rpart(Survived ~ Pclass + Sex + Age + Fare + title + FamilySide + tipo + Embarked,method="class",data=train, control = rpart.control(cp = 0.0001))
+printcp(modelo.cart)
+
+
+
+```
+```{r}
+tree.pruned <- prune(modelo.cart, cp = 0.0001)
+conf.matrix <- table(train$Survived, predict(tree.pruned,type="class"))
+rownames(conf.matrix) <- paste("Actual", rownames(conf.matrix), sep = ":")
+colnames(conf.matrix) <- paste("Pred", colnames(conf.matrix), sep = ":")
+conf.matrix
+prp(tree.pruned, faclen = 0, cex = 0.8, extra = 1)
+
+
+```
+```{r}
+
+test$Survived <- predict(modelo.cart,test)
+predict(modelo.cart,test)
+```
+```{r}
+test$Survived[predict(modelo.cart,test) >= 0.5] <- 0
+test$Survived[predict(modelo.cart,test) <=0.5] <- 1
+```
+
+```{r}
+prediccion_KKNN=predict(KKNN,test)
+prediccion_KKNN
+test$Survived <- prediccion_KKNN
+```
+```{r}
+submit4<- data.frame(PassengerId= test$PassengerId, Survived= test$Survived) #crear un nuevo conjunto de datos para enviar con las variables Id y Survived del conjunto test
+View(submit4)
+
+```
+
+```{r}
+submit5<- data.frame(PassengerId= submit4$PassengerId, Survived= submit4$Survived.0)
+View(submit5)
+```
+
+```{r}
+write.csv(submit5,file="CART.csv",row.names= FALSE)
+```
+
