@@ -1,0 +1,316 @@
+---
+title: "TFM"
+author: "Daniel Barandiarán"
+date: '2022-08-03'
+output: html_document
+---
+
+carga de datos
+
+```{r}
+games <- readxl::read_excel("data1.xlsx")
+str(games)
+```
+
+Transformación de variables
+
+```{r}
+games$ING <- as.numeric(games$ING)
+games$PREC <- as.numeric(games$PREC)
+games$UNID <- as.numeric(games$UNID)
+games$VAL <- as.numeric(games$VAL)
+games$GEN <- as.factor(games$GEN)
+games$CLAS <- as.factor(games$CLAS)
+```
+
+
+Resumen de datos
+
+```{r}
+summary(games)
+```
+
+Gráfico caja y bigotes de variables numéricas
+
+```{r}
+library(tidyr)
+library(ggplot2)
+games_std <- scale(games[,1:5])
+long <- pivot_longer(as.data.frame(games_std), cols = 1:5)
+ggplot(long, aes(x=name, y=value, fill=name)) + geom_boxplot() + theme(axis.text.x = element_text(angle = 90)) + theme_update()
+```
+
+
+Identificación de valores atípicos
+
+```{r}
+out <- boxplot.stats(games$ING)$out
+out_ind <- which(games$ING %in% c(out))
+out_ind
+```
+
+```{r}
+library(rstatix)
+library(tidyverse)
+games %>% identify_outliers(ING)
+```
+
+```{r}
+games %>% identify_outliers(RES)
+```
+
+
+```{r}
+games %>% identify_outliers(UNID)
+```
+
+
+```{r}
+games %>% identify_outliers(VAL)
+```
+
+
+
+Gráfico ggpairs 
+
+```{r}
+library(GGally)
+ggpairs(games[,1:7])
+```
+
+
+Identificación outliers del PCA
+
+```{r}
+library(mt)
+out <- pca.outlier(games[,1:5], adj=-0.5)
+out$outlier
+```
+
+datos activos
+
+```{r}
+games_active <- games[c(-6,-12), 1:5]
+```
+
+
+
+Pruebas de correlación
+
+```{r}
+library(psych)
+cortest.bartlett(games_active, n=98)
+```
+
+
+```{r}
+KMO(cor(games_active))
+```
+
+
+```{r}
+det(cor(games_active))
+```
+
+
+Creación modelo PCA
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+( res_pca <- PCA(games_active, graph=FALSE))
+```
+
+
+Resumen model PCA
+
+```{r}
+summary(res_pca)
+```
+
+
+Selección de PCs
+
+```{r}
+get_eigenvalue(res_pca)
+```
+
+
+```{r}
+fviz_screeplot(res_pca)
+```
+
+
+```{r}
+library(psych)
+fa.parallel(decathlon2_active, fa="pc")
+```
+
+
+
+Mapa de variables
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+fviz_pca_var(res_pca, repel = TRUE)
+```
+
+
+Calidad de las variables 
+
+```{r}
+fviz_cos2(res_pca, choice = "var", axes=1)
+fviz_cos2(res_pca, choice = "var", axes=2)
+```
+
+
+Contribución de las variables
+
+```{r}
+fviz_contrib(res_pca, choice = "var", axes = 1)
+fviz_contrib(res_pca, choice = "var", axes = 2)
+```
+
+
+Descripción de variables
+
+```{r}
+library(FactoMineR)
+res_desc <- dimdesc(res_pca, axes=c(1,2), proba = 0.05)
+```
+
+```{r}
+res_desc$Dim.1
+```
+```{r}
+res_desc$Dim.2
+```
+
+
+mapa de individuos
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+fviz_pca_ind(res_pca, repel=TRUE)
+```
+
+
+Calidad de los individuos
+
+```{r}
+fviz_cos2(res_pca, choice = "ind", axes = 1)
+fviz_cos2(res_pca, choice = "ind", axes = 2)
+```
+
+
+Contribución individuos
+
+```{r}
+fviz_contrib(res_pca, choice = "ind", axes = 1)
+fviz_contrib(res_pca, choice = "ind", axes = 2)
+```
+
+
+biplot
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+fviz_pca_biplot(res_pca, repel=TRUE)
+```
+
+
+Biplot filtrado
+
+```{r}
+fviz_pca_biplot(res_pca, repel=T,
+                select.var=list(contrib=4),
+                select.ind=list(cos2=0.7),
+                ggtheme = theme_minimal())
+```
+
+
+Creación del PCA completo
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+res_pca_all <- PCA(games[c(-6,-12),-8],
+                   graph = FALSE,
+                   quali.sup = 6:7)
+```
+
+
+Biplot completo
+
+```{r}
+library(factoextra)
+p <- fviz_pca_biplot(res_pca_all, repel = T)
+p <- fviz_add (p,  res_pca_all$quali.sup$coord, color = "red", repel = T)
+p
+```
+
+
+Descripción de los PCs
+
+```{r}
+desc_pca_all <- dimdesc(res_pca_all, axes = c(1, 2))
+desc_pca_all$Dim.1
+```
+
+
+```{r}
+desc_pca_all$Dim.2
+```
+
+
+Agrupación jerárquica sobre los componentes principales.
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+hcpc <- HCPC(res_pca_all, 
+     nb.clust = -1,
+     graph = F)
+```
+
+
+Dendrograma 
+
+```{r}
+fviz_dend(hcpc, rect=TRUE, rect_fill = TRUE)
+```
+
+
+Mapa de la agrupación
+
+```{r}
+fviz_cluster(hcpc, show.clust.cent = TRUE, rect_fill = TRUE)
+```
+
+
+Variables categóricas que caracterizan a los grupos
+
+```{r}
+hcpc$desc.var$category
+```
+
+
+Variables cuantitativas que caracterizan los grupos 
+
+```{r}
+hcpc$desc.var$quanti
+```
+
+
+Principales individuos de cada grupo. 
+
+```{r}
+hcpc$desc.ind$para
+```
+
+`
+
+
