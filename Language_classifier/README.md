@@ -1,6 +1,6 @@
-# Documentation for the Document Classification Language Code
+# Documentation for the Document Classification Language Code for CHATBOT
 
-This document describes the operation and components of the language module. This module classifies markdown documents based on the percentage of languages detected. The process is divided into two main models: a classification model that works as a filter and a classification model for the rest of the documents.
+This document describes the operation and components of the language module. This module classifies markdown documents based on the percentage of languages detected. The process is divided into two main models: a classification model that works as a filter and a classification model for the rest of the documents. This is essential for implementing a CHATBOT that can effectively process correct content in one language.
 
 
 ## Table of Contents
