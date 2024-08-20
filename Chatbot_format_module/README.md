@@ -1,5 +1,13 @@
 # Unified Documentation
 
+The purpose of these modules is to process and convert HTML content into a well-structured Markdown format with correct hierarchical organization. This is essential for implementing a CHATBOT that can effectively process and present structured content.
+
+The Format Module (Formato) is responsible for converting HTML elements into their Markdown equivalents, properly handling tables, code blocks, and other HTML elements to ensure that the content's format is preserved during the transformation.
+
+The Hierarchy Module (Jerarquia), on the other hand, ensures that the converted content has a coherent hierarchical structure, particularly with regard to headers. This module adjusts and normalizes header levels to follow a logical hierarchy, ensuring that the final document is easy to read and well-organized.
+
+Together, these modules facilitate the conversion of HTML content to Markdown, ensuring that both the format and the hierarchical structure are correctly maintained.
+
 ## Format Module (Formato)
 
 This module contains various functions and a main class that help process and convert content into different formats.
